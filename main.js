@@ -20,19 +20,40 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(0, 0.8, 4.5);
 camera.lookAt(0, 0, 0);
 
-/* ── Lighting ── */
-const ambientLight = new THREE.AmbientLight(0x2a4a7a, 1.0);
+/* ── Responsive camera: ensure globe always fully visible ── */
+function updateCameraForScreen() {
+    var aspect = window.innerWidth / window.innerHeight;
+    var globeRadius = 1.5;
+    var satMaxRadius = 2.8;  // max satellite orbit + margin
+    var vFOV = 50;
+    var fovRad = vFOV * Math.PI / 180;
+    var tanHalf = Math.tan(fovRad / 2);
+
+    // Ensure the full scene (globe + satellites) fits horizontally
+    var minCamZ_width = satMaxRadius / (tanHalf * Math.max(aspect, 0.25));
+    // Ensure the full scene fits vertically
+    var minCamZ_height = satMaxRadius / tanHalf;
+    var camZ = Math.max(minCamZ_width, minCamZ_height, 4.0);
+
+    camera.fov = vFOV;
+    camera.position.z = camZ;
+    camera.updateProjectionMatrix();
+}
+updateCameraForScreen();
+
+/* ── Lighting (soft, uniform) ── */
+const ambientLight = new THREE.AmbientLight(0x2a4a7a, 0.6);
 scene.add(ambientLight);
 
-const sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
+const sunLight = new THREE.DirectionalLight(0xffffff, 0.25);
 sunLight.position.set(5, 3, 5);
 scene.add(sunLight);
 
-const rimLight = new THREE.PointLight(0x00e5ff, 2.0, 20);
+const rimLight = new THREE.PointLight(0x00e5ff, 0.8, 20);
 rimLight.position.set(-3, 2, -3);
 scene.add(rimLight);
 
@@ -95,7 +116,7 @@ function createGlobe() {
         color: 0x00e5ff,
         wireframe: true,
         transparent: true,
-        opacity: 0.55,
+        opacity: 0.25,
     });
     const wireframeSphere = new THREE.Mesh(sphereGeo, wireframeMat);
     group.add(wireframeSphere);
@@ -104,7 +125,7 @@ function createGlobe() {
     const ringMat = new THREE.LineBasicMaterial({
         color: 0x00e5ff,
         transparent: true,
-        opacity: 0.7,
+        opacity: 0.35,
     });
 
     // Latitude rings
@@ -142,10 +163,10 @@ function createGlobe() {
     const innerMat = new THREE.MeshPhongMaterial({
         color: 0x0a1a30,
         emissive: 0x002040,
-        emissiveIntensity: 1.5,
+        emissiveIntensity: 0.4,
         transparent: true,
-        opacity: 0.95,
-        shininess: 30,
+        opacity: 0.9,
+        shininess: 10,
     });
     group.add(new THREE.Mesh(innerGeo, innerMat));
 
@@ -162,7 +183,7 @@ function createGlobe() {
             void main() {
                 vec3 vNormal = normalize(normalMatrix * normal);
                 vec3 vNormel = normalize(normalMatrix * viewVector);
-                intensity = pow(0.65 - dot(vNormal, vNormel), 2.0);
+                intensity = pow(0.55 - dot(vNormal, vNormel), 2.0);
                 gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
             }
         `,
@@ -171,7 +192,7 @@ function createGlobe() {
             varying float intensity;
             void main() {
                 vec3 glow = glowColor * intensity;
-                gl_FragColor = vec4(glow, intensity * 1.2);
+                gl_FragColor = vec4(glow, intensity * 0.7);
             }
         `,
         side: THREE.FrontSide,
@@ -563,7 +584,7 @@ window.addEventListener('resize', () => {
     const w = window.innerWidth;
     const h = window.innerHeight;
     camera.aspect = w / h;
-    camera.updateProjectionMatrix();
+    updateCameraForScreen();
     renderer.setSize(w, h);
     resizeOverlay();
 });
@@ -1260,6 +1281,12 @@ function hapticFeedback(type) {
     function applyZoom(scale) {
         zoomLevel = Math.round(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, scale)) * 100) / 100;
         document.body.style.zoom = zoomLevel;
+
+        // Background sync: body.style.zoom already scales all elements
+        // including fixed-position canvases in Chrome/Safari.
+        // Explicit canvas transform would double-scale, so we rely on
+        // the native zoom property for unified visual scaling.
+
         if (zoomLevelEl) zoomLevelEl.textContent = Math.round(zoomLevel * 100) + '%';
         saveStorageZoom(zoomLevel);
     }
@@ -1267,18 +1294,35 @@ function hapticFeedback(type) {
     // --- Button zoom ---
     window.zoomIn = function () {
         applyZoom(zoomLevel + ZOOM_STEP);
-        hapticFeedback('tap');
     };
 
     window.zoomOut = function () {
         applyZoom(zoomLevel - ZOOM_STEP);
-        hapticFeedback('tap');
     };
 
     window.zoomReset = function () {
         applyZoom(1.0);
-        hapticFeedback('tap');
     };
+
+    // --- FAB palette toggle ---
+    window.toggleFabPalette = function () {
+        var palette = document.getElementById('fabPalette');
+        var main = document.getElementById('fabMain');
+        if (!palette || !main) return;
+        var isOpen = palette.classList.toggle('show');
+        main.classList.toggle('active', isOpen);
+    };
+
+    // Close FAB palette when tapping outside
+    document.addEventListener('click', function (e) {
+        var fab = document.getElementById('fabZoom');
+        if (fab && !fab.contains(e.target)) {
+            var palette = document.getElementById('fabPalette');
+            var main = document.getElementById('fabMain');
+            if (palette) palette.classList.remove('show');
+            if (main) main.classList.remove('active');
+        }
+    });
 
     // --- Pinch-to-zoom ---
     var pinchStartDist = 0;
@@ -1326,5 +1370,20 @@ function hapticFeedback(type) {
     var saved = getStorageZoom();
     if (saved !== 1.0) {
         applyZoom(saved);
+    } else {
+        // Auto-adapt to screen size (requirement #1)
+        (function autoAdaptScale() {
+            var w = window.innerWidth;
+            var h = window.innerHeight;
+            var minDim = Math.min(w, h);
+            var targetScale = 1.0;
+            if (minDim <= 320) targetScale = 0.78;
+            else if (minDim <= 360) targetScale = 0.88;
+            else if (minDim <= 390) targetScale = 0.95;
+            // 391+ stays at 1.0
+            if (targetScale !== 1.0) {
+                applyZoom(targetScale);
+            }
+        })();
     }
 })();
