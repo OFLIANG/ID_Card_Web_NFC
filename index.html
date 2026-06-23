@@ -22,25 +22,30 @@
     <!-- ═══════ 2D Overlay Canvas (scan lines) ═══════ -->
     <canvas id="overlay-canvas"></canvas>
 
+    <!-- ═══════ Mouse/Touch Particle Canvas ═══════ -->
+    <canvas id="particle-canvas"></canvas>
+
     <!-- ═══════ HTML UI Overlay ═══════ -->
     <div class="ui-overlay">
 
         <!-- 顶部遥感数据条 -->
         <div class="telemetry-bar">
             <div class="telemetry-item">
-                <span class="telemetry-label">SAT</span>
+                <span class="telemetry-label" data-i18n="telemetry-label-sat">卫星</span>
                 <span class="telemetry-value" id="satId">GF-07</span>
             </div>
             <div class="telemetry-dot"></div>
             <div class="telemetry-item">
-                <span class="telemetry-label">ALT</span>
+                <span class="telemetry-label" data-i18n="telemetry-label-alt">高度</span>
                 <span class="telemetry-value" id="satAlt">507km</span>
             </div>
             <div class="telemetry-dot"></div>
             <div class="telemetry-item">
-                <span class="telemetry-label">STATUS</span>
-                <span class="telemetry-value blink">ACTIVE</span>
+                <span class="telemetry-label" data-i18n="telemetry-label-status">状态</span>
+                <span class="telemetry-value blink" data-i18n="telemetry-value-status">运行中</span>
             </div>
+            <div class="telemetry-dot"></div>
+            <button class="lang-toggle" id="langToggle" onclick="switchLang()" data-i18n="lang-switch">EN</button>
         </div>
 
         <!-- 主内容卡片 -->
@@ -59,7 +64,7 @@
                 <h1 class="name">梁超</h1>
                 <div class="subtitle-line">
                     <span class="sub-dash"></span>
-                    <span class="sub-text">REMOTE SENSING · CONNECT</span>
+                    <span class="sub-text" data-i18n="subtitle">遥感 · 连接</span>
                     <span class="sub-dash"></span>
                 </div>
 
@@ -67,14 +72,14 @@
                 <div class="section-block">
                     <div class="section-header">
                         <i class="fas fa-satellite-dish"></i>
-                        <span>通信频道</span>
+                        <span data-i18n="section-contact">通信频道</span>
                         <div class="header-line"></div>
                     </div>
                     <div class="contact-list">
                         <a href="tel:13153152494" class="contact-item">
                             <div class="item-icon"><i class="fas fa-phone"></i></div>
                             <div class="item-info">
-                                <span class="item-label">电话 TEL</span>
+                                <span class="item-label" data-i18n="label-tel">电话 TEL</span>
                                 <span class="item-value">131 5315 2494</span>
                             </div>
                             <div class="item-arrow"><i class="fas fa-chevron-right"></i></div>
@@ -82,7 +87,7 @@
                         <a href="mailto:13153152494@163.com" class="contact-item">
                             <div class="item-icon"><i class="fas fa-envelope"></i></div>
                             <div class="item-info">
-                                <span class="item-label">邮箱 EMAIL</span>
+                                <span class="item-label" data-i18n="label-email">邮箱 EMAIL</span>
                                 <span class="item-value">13153152494@163.com</span>
                             </div>
                             <div class="item-arrow"><i class="fas fa-chevron-right"></i></div>
@@ -90,7 +95,7 @@
                         <a href="javascript:void(0)" class="contact-item" id="wechatLink">
                             <div class="item-icon"><i class="fab fa-weixin"></i></div>
                             <div class="item-info">
-                                <span class="item-label">微信 WECHAT</span>
+                                <span class="item-label" data-i18n="label-wechat">微信 WECHAT</span>
                                 <span class="item-value">Life_Copy</span>
                             </div>
                             <div class="item-arrow"><i class="fas fa-copy"></i></div>
@@ -102,7 +107,7 @@
                 <div class="section-block">
                     <div class="section-header">
                         <i class="fas fa-globe"></i>
-                        <span>数据链路</span>
+                        <span data-i18n="section-data">数据链路</span>
                         <div class="header-line"></div>
                     </div>
                     <div class="social-grid">
@@ -112,39 +117,39 @@
                         </a>
                         <a href="https://v.douyin.com/LEO7mUvCcsg/" target="_blank" class="social-item">
                             <i class="fab fa-tiktok"></i>
-                            <span>抖音</span>
+                            <span data-i18n="social-douyin">抖音</span>
                         </a>
                         <a href="https://y.music.163.com/m/user?id=1810943693" target="_blank" class="social-item">
                             <i class="fa-solid fa-compact-disc"></i>
-                            <span>网易云</span>
+                            <span data-i18n="social-netease">网易云</span>
                         </a>
                     </div>
                 </div>
 
                 <!-- 操作按钮 -->
                 <div class="action-row">
-                    <button class="btn-action btn-primary" onclick="downloadVCard()">
+                    <button class="btn-action btn-primary" onclick="downloadVCard(); hapticFeedback('tap');">
                         <i class="fas fa-address-card"></i>
-                        <span>保存联系人</span>
+                        <span data-i18n="btn-save">保存联系人</span>
                     </button>
-                    <button class="btn-action btn-secondary" onclick="shareCard()">
+                    <button class="btn-action btn-secondary" onclick="shareCard(); hapticFeedback('tap');">
                         <i class="fas fa-share-alt"></i>
-                        <span>分享名片</span>
+                        <span data-i18n="btn-share">分享名片</span>
                     </button>
                 </div>
 
-            </div>
-        </div>
+                <!-- NFC 脉冲 -->
+                <div class="nfc-footer">
+                    <div class="signal-rings">
+                        <div class="ring ring-1"></div>
+                        <div class="ring ring-2"></div>
+                        <div class="ring ring-3"></div>
+                    </div>
+                    <div class="nfc-icon"><i class="fas fa-broadcast-tower"></i></div>
+                    <span class="nfc-text" data-i18n="nfc-text">NFC · 触碰即达</span>
+                </div>
 
-        <!-- 底部 NFC 脉冲 -->
-        <div class="nfc-footer">
-            <div class="signal-rings">
-                <div class="ring ring-1"></div>
-                <div class="ring ring-2"></div>
-                <div class="ring ring-3"></div>
             </div>
-            <div class="nfc-icon"><i class="fas fa-broadcast-tower"></i></div>
-            <span class="nfc-text">NFC · 触碰即达</span>
         </div>
 
         <!-- 微信二维码弹窗 -->
@@ -153,27 +158,29 @@
             <div class="wechat-modal-content">
                 <div class="wechat-modal-header">
                     <i class="fab fa-weixin"></i>
-                    <span>添加微信好友</span>
+                    <span data-i18n="wechat-title">添加微信好友</span>
                 </div>
                 <div class="wechat-qr-area">
                     <div class="wechat-qr-code" id="wechatQR">
                         <!-- QR code will be generated here -->
                     </div>
                     <div class="wechat-id-display">
-                        <span class="wechat-id-label">微信ID</span>
+                        <span class="wechat-id-label" data-i18n="wechat-id-label">微信ID</span>
                         <span class="wechat-id-value" id="wechatIdText">Life_Copy</span>
-                        <button class="wechat-copy-btn" onclick="copyToClipboard('Life_Copy')">
-                            <i class="fas fa-copy"></i> 复制
+                        <button class="wechat-copy-btn" onclick="copyToClipboard('Life_Copy'); hapticFeedback('tap');">
+                            <i class="fas fa-copy"></i> <span data-i18n="wechat-copy">复制</span>
                         </button>
                     </div>
                 </div>
                 <div class="wechat-modal-actions">
-                    <button class="wechat-btn-open" onclick="launchWeChat()">
-                        <i class="fab fa-weixin"></i> 打开微信
+                    <button class="wechat-btn-open" onclick="launchWeChat(); hapticFeedback('tap');">
+                        <i class="fab fa-weixin"></i> <span data-i18n="wechat-open">打开微信</span>
                     </button>
-                    <button class="wechat-btn-close" onclick="closeWeChatModal()">关闭</button>
+                    <button class="wechat-btn-close" onclick="closeWeChatModal(); hapticFeedback('tap');">
+                        <span data-i18n="wechat-close">关闭</span>
+                    </button>
                 </div>
-                <p class="wechat-hint">长按识别二维码 或 复制ID搜索添加</p>
+                <p class="wechat-hint" data-i18n="wechat-hint">长按识别二维码 或 复制ID搜索添加</p>
             </div>
         </div>
 

@@ -591,7 +591,7 @@ END:VCARD`;
     a.download = '梁超.vcf';
     a.click();
     URL.revokeObjectURL(url);
-    showToast('联系人文件已下载');
+    showToast('toast-vcard');
 };
 
 /* ── Share ── */
@@ -599,14 +599,14 @@ window.shareCard = async function() {
     if (navigator.share) {
         try {
             await navigator.share({
-                title: '梁超 · 个人名片',
-                text: '这是梁超的数字名片，NFC触碰即达！',
+                title: window.__t('share-title') || '梁超 · 个人名片',
+                text: window.__t('share-text') || '这是梁超的数字名片，NFC触碰即达！',
                 url: window.location.href,
             });
         } catch (e) { /* user cancelled */ }
     } else {
         await navigator.clipboard.writeText(window.location.href);
-        showToast('链接已复制到剪贴板');
+        showToast('toast-link');
     }
 };
 
@@ -614,7 +614,7 @@ window.shareCard = async function() {
 window.copyToClipboard = async function(text) {
     try {
         await navigator.clipboard.writeText(text);
-        showToast(`已复制: ${text}`);
+        showToast('toast-copied');
     } catch {
         // Fallback
         const ta = document.createElement('textarea');
@@ -623,17 +623,22 @@ window.copyToClipboard = async function(text) {
         ta.select();
         document.execCommand('copy');
         document.body.removeChild(ta);
-        showToast(`已复制: ${text}`);
+        showToast('toast-copied');
     }
 };
 
 /* ── Toast ── */
 function showToast(msg) {
-    const toast = document.getElementById('toast');
-    const text = document.getElementById('toastText');
-    text.textContent = msg;
+    var toast = document.getElementById('toast');
+    var text = document.getElementById('toastText');
+    // Support i18n key lookup
+    if (typeof window.__t === 'function' && window.__t(msg)) {
+        text.textContent = window.__t(msg);
+    } else {
+        text.textContent = msg;
+    }
     toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 2000);
+    setTimeout(function () { toast.classList.remove('show'); }, 2000);
 }
 
 /* ── Telemetry Data Update ── */
@@ -674,7 +679,7 @@ window.launchWeChat = function() {
         // 1. Copy WeChat ID to clipboard
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(wechatId).then(function() {
-                showToast('微信号已复制');
+                showToast('toast-wechat-copied');
             }).catch(function() {
                 fallbackCopy(wechatId);
             });
@@ -697,9 +702,9 @@ window.launchWeChat = function() {
         ta.select();
         try {
             document.execCommand('copy');
-            showToast('微信号已复制');
+            showToast('toast-wechat-copied');
         } catch (err) {
-            showToast('请长按手动复制');
+            showToast('toast-wechat-fail');
         }
         document.body.removeChild(ta);
     }
@@ -708,11 +713,517 @@ window.launchWeChat = function() {
         var toast = document.getElementById('toast');
         var toastText = document.getElementById('toastText');
         if (toast && toastText) {
-            toastText.textContent = msg;
+            toastText.textContent = (typeof window.__t === 'function' && window.__t(msg)) || msg;
             toast.classList.add('show');
             setTimeout(function() {
                 toast.classList.remove('show');
             }, 2000);
         }
     }
+})();
+
+/* ═══════════════════════════════════════════════
+   Meteor / Shooting Star Particle Effects
+   - Background: periodic meteors streak across the sky
+   - PC: mouse trail spawns meteor sparks with glow
+   - Mobile: touch spawns expanding ring + meteor burst
+   Real meteor colors: white-yellow core → orange → red trail
+   ═══════════════════════════════════════════════ */
+(function () {
+    const canvas = document.getElementById('particle-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+
+    /* ── Realistic meteor color palette ── */
+    const METEOR_HEAD = ['#ffffff', '#fff8e1', '#ffe0b2'];  // hot white/yellow core
+    const METEOR_BODY = ['#ffab40', '#ff6d00', '#ff3d00'];   // orange body
+    const METEOR_TAIL = ['#ff1744', '#d50000', '#880e4f'];   // red/deep tail
+    const METEOR_ION  = ['#00e5ff', '#00b0ff', '#40c4ff'];   // blue ionization trail
+
+    let meteors = [];
+    let sparkParticles = [];
+    let rings = [];
+    let mouse = { x: -1000, y: -1000, px: -1000, py: -1000 };
+    let W, H;
+
+    /* ── Resize ── */
+    function resize() {
+        const dpr = window.devicePixelRatio || 1;
+        W = window.innerWidth;
+        H = window.innerHeight;
+        canvas.width = W * dpr;
+        canvas.height = H * dpr;
+        canvas.style.width = W + 'px';
+        canvas.style.height = H + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    /* ── Meteor class (background streaking meteors) ── */
+    class Meteor {
+        constructor() {
+            // Random start position from top/sides
+            const side = Math.random();
+            if (side < 0.4) {
+                // From top-left
+                this.x = Math.random() * W * 0.5;
+                this.y = -20;
+                this.angle = Math.PI / 4 + (Math.random() - 0.5) * 0.5;
+            } else if (side < 0.7) {
+                // From top-right
+                this.x = W * 0.5 + Math.random() * W * 0.5;
+                this.y = -20;
+                this.angle = Math.PI * 0.75 + (Math.random() - 0.5) * 0.5;
+            } else {
+                // From left side
+                this.x = -20;
+                this.y = Math.random() * H * 0.4;
+                this.angle = Math.PI / 6 + Math.random() * 0.4;
+            }
+
+            this.speed = 4 + Math.random() * 6;
+            this.vx = Math.cos(this.angle) * this.speed;
+            this.vy = Math.sin(this.angle) * this.speed;
+            this.tailLength = 60 + Math.random() * 100;
+            this.size = 1.5 + Math.random() * 2;
+            this.life = 1.0;
+            this.fadeSpeed = 0.003 + Math.random() * 0.005;
+            this.brightness = 0.7 + Math.random() * 0.3;
+
+            // Slight color variation
+            this.headColor = METEOR_HEAD[Math.floor(Math.random() * METEOR_HEAD.length)];
+            this.bodyColor = METEOR_BODY[Math.floor(Math.random() * METEOR_BODY.length)];
+            this.tailColor = METEOR_TAIL[Math.floor(Math.random() * METEOR_TAIL.length)];
+            this.ionColor = METEOR_ION[Math.floor(Math.random() * METEOR_ION.length)];
+        }
+
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            this.life -= this.fadeSpeed;
+            // Slight gravity effect
+            this.vy += 0.01;
+        }
+
+        draw() {
+            if (this.life <= 0) return;
+            const alpha = this.life * this.brightness;
+
+            // Calculate trail direction (opposite to velocity)
+            const trailX = -this.vx;
+            const trailY = -this.vy;
+            const len = Math.sqrt(trailX * trailX + trailY * trailY);
+            const nx = trailX / len;
+            const ny = trailY / len;
+
+            // Draw ionization trail (blue, wide, faint)
+            ctx.globalAlpha = alpha * 0.08;
+            const ionGrad = ctx.createLinearGradient(
+                this.x, this.y,
+                this.x + nx * this.tailLength * 1.3, this.y + ny * this.tailLength * 1.3
+            );
+            ionGrad.addColorStop(0, this.ionColor);
+            ionGrad.addColorStop(1, 'transparent');
+            ctx.strokeStyle = ionGrad;
+            ctx.lineWidth = this.size * 3;
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y);
+            ctx.lineTo(this.x + nx * this.tailLength * 1.3, this.y + ny * this.tailLength * 1.3);
+            ctx.stroke();
+
+            // Draw main tail (red → orange gradient)
+            ctx.globalAlpha = alpha * 0.35;
+            const tailGrad = ctx.createLinearGradient(
+                this.x, this.y,
+                this.x + nx * this.tailLength, this.y + ny * this.tailLength
+            );
+            tailGrad.addColorStop(0, this.bodyColor);
+            tailGrad.addColorStop(0.5, this.tailColor);
+            tailGrad.addColorStop(1, 'transparent');
+            ctx.strokeStyle = tailGrad;
+            ctx.lineWidth = this.size * 1.8;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y);
+            ctx.lineTo(this.x + nx * this.tailLength, this.y + ny * this.tailLength);
+            ctx.stroke();
+
+            // Draw hot core (bright white-yellow)
+            ctx.globalAlpha = alpha * 0.9;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size * 0.6, 0, Math.PI * 2);
+            ctx.fillStyle = this.headColor;
+            ctx.fill();
+
+            // Head glow
+            ctx.globalAlpha = alpha * 0.25;
+            const headGlow = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size * 4);
+            headGlow.addColorStop(0, this.headColor);
+            headGlow.addColorStop(0.5, this.bodyColor);
+            headGlow.addColorStop(1, 'transparent');
+            ctx.fillStyle = headGlow;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size * 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.globalAlpha = 1;
+        }
+
+        isOffScreen() {
+            return this.x < -200 || this.x > W + 200 || this.y > H + 200 || this.life <= 0;
+        }
+    }
+
+    /* ── Spark class (small glowing embers from interaction) ── */
+    class Spark {
+        constructor(x, y, vx, vy, color, size, life) {
+            this.x = x;
+            this.y = y;
+            this.vx = vx;
+            this.vy = vy;
+            this.color = color;
+            this.size = size;
+            this.life = life;
+            this.maxLife = life;
+        }
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            this.vx *= 0.96;
+            this.vy *= 0.96;
+            this.vy += 0.02; // gravity
+            this.life--;
+        }
+        draw() {
+            const alpha = this.life / this.maxLife;
+            // Core
+            ctx.globalAlpha = alpha * 0.9;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size * alpha * 0.5, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+            // Glow
+            ctx.globalAlpha = alpha * 0.3;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size * alpha * 2, 0, Math.PI * 2);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+    }
+
+    /* ── Ring class (touch expanding shockwave) ── */
+    class Ring {
+        constructor(x, y, color) {
+            this.x = x;
+            this.y = y;
+            this.radius = 0;
+            this.maxRadius = 60 + Math.random() * 50;
+            this.life = 35;
+            this.maxLife = 35;
+            this.color = color;
+        }
+        update() {
+            this.radius += (this.maxRadius - this.radius) * 0.1;
+            this.life--;
+        }
+        draw() {
+            const alpha = this.life / this.maxLife;
+            ctx.globalAlpha = alpha * 0.4;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.strokeStyle = this.color;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            // Inner glow
+            ctx.globalAlpha = alpha * 0.12;
+            ctx.lineWidth = 5;
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+        }
+    }
+
+    /* ── Spawn background meteors periodically ── */
+    let meteorTimer = 0;
+    function spawnRandomMeteor() {
+        meteors.push(new Meteor());
+    }
+
+    /* ── Spawn mouse trail sparks (PC) ── */
+    function spawnMouseSparks(x, y, px, py) {
+        const dx = x - px;
+        const dy = y - py;
+        const speed = Math.sqrt(dx * dx + dy * dy);
+        const count = Math.min(Math.floor(speed / 4), 5);
+        for (let i = 0; i < count; i++) {
+            const t = i / count;
+            const sx = px + dx * t + (Math.random() - 0.5) * 6;
+            const sy = py + dy * t + (Math.random() - 0.5) * 6;
+            const colorPool = [...METEOR_HEAD, ...METEOR_BODY, ...METEOR_ION];
+            const color = colorPool[Math.floor(Math.random() * colorPool.length)];
+            sparkParticles.push(new Spark(
+                sx, sy,
+                (Math.random() - 0.5) * 1.5,
+                (Math.random() - 0.5) * 1.5,
+                color,
+                2 + Math.random() * 2,
+                20 + Math.floor(Math.random() * 20)
+            ));
+        }
+    }
+
+    /* ── Spawn touch burst (Mobile) ── */
+    function spawnTouchBurst(x, y) {
+        // Expanding rings
+        const ringColor = METEOR_ION[Math.floor(Math.random() * METEOR_ION.length)];
+        rings.push(new Ring(x, y, ringColor));
+        rings.push(new Ring(x, y, ringColor));
+
+        // Particle burst in meteor colors
+        const count = 25 + Math.floor(Math.random() * 15);
+        for (let i = 0; i < count; i++) {
+            const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.5;
+            const spd = 1 + Math.random() * 4;
+            // Most particles are warm colors (like meteor), some blue
+            const colorPool = [...METEOR_HEAD, ...METEOR_BODY, ...METEOR_TAIL, ...METEOR_ION];
+            const color = colorPool[Math.floor(Math.random() * colorPool.length)];
+            sparkParticles.push(new Spark(
+                x, y,
+                Math.cos(angle) * spd,
+                Math.sin(angle) * spd,
+                color,
+                1 + Math.random() * 2.5,
+                25 + Math.floor(Math.random() * 25)
+            ));
+        }
+    }
+
+    /* ── Main animation loop ── */
+    function animate() {
+        ctx.clearRect(0, 0, W, H);
+
+        // Spawn random background meteors
+        meteorTimer++;
+        if (meteorTimer > 90 + Math.random() * 150) { // every ~1.5-4 seconds
+            spawnRandomMeteor();
+            meteorTimer = 0;
+        }
+
+        // Update & draw meteors
+        meteors = meteors.filter(m => !m.isOffScreen());
+        for (const m of meteors) {
+            m.update();
+            m.draw();
+        }
+
+        // Update & draw rings
+        rings = rings.filter(r => r.life > 0);
+        for (const r of rings) {
+            r.update();
+            r.draw();
+        }
+
+        // Update & draw sparks
+        sparkParticles = sparkParticles.filter(s => s.life > 0);
+        for (const s of sparkParticles) {
+            s.update();
+            s.draw();
+        }
+
+        // PC: mouse glow (warm meteor core)
+        if (!isMobile && mouse.x > 0) {
+            ctx.globalAlpha = 0.12;
+            const grad = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, 25);
+            grad.addColorStop(0, '#ffe0b2');
+            grad.addColorStop(0.4, '#ff6d00');
+            grad.addColorStop(1, 'transparent');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(mouse.x, mouse.y, 25, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+
+        requestAnimationFrame(animate);
+    }
+    animate();
+
+    /* ── PC: Mouse events ── */
+    if (!isMobile) {
+        document.addEventListener('mousemove', function (e) {
+            mouse.px = mouse.x;
+            mouse.py = mouse.y;
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+            spawnMouseSparks(e.clientX, e.clientY, mouse.px, mouse.py);
+        });
+    }
+
+    /* ── Mobile: Touch events ── */
+    if (isMobile) {
+        document.addEventListener('touchstart', function (e) {
+            const touch = e.touches[0];
+            spawnTouchBurst(touch.clientX, touch.clientY);
+            hapticFeedback('tap');
+        }, { passive: true });
+
+        document.addEventListener('touchmove', function (e) {
+            const touch = e.touches[0];
+            const colorPool = [...METEOR_BODY, ...METEOR_TAIL];
+            const color = colorPool[Math.floor(Math.random() * colorPool.length)];
+            sparkParticles.push(new Spark(
+                touch.clientX + (Math.random() - 0.5) * 8,
+                touch.clientY + (Math.random() - 0.5) * 8,
+                (Math.random() - 0.5) * 1.2,
+                (Math.random() - 0.5) * 1.2,
+                color,
+                1 + Math.random(),
+                15 + Math.floor(Math.random() * 12)
+            ));
+        }, { passive: true });
+    }
+})();
+
+
+/* ═══════════════════════════════════════════════
+   Haptic / Vibration Feedback (Mobile)
+   ═══════════════════════════════════════════════ */
+function hapticFeedback(type) {
+    if (!navigator.vibrate) return;
+    switch (type) {
+        case 'tap':     navigator.vibrate(8);   break;   // button / tap
+        case 'scroll':  navigator.vibrate(4);   break;   // scroll (very subtle)
+        case 'success': navigator.vibrate([10, 50, 10]); break; // success pattern
+        default:        navigator.vibrate(6);   break;
+    }
+}
+
+/* ── Attach haptics to all interactive elements ── */
+(function initHaptics() {
+    // Buttons / clickable elements
+    document.addEventListener('click', function (e) {
+        const target = e.target.closest('button, a, .contact-item, .social-item, .wechat-copy-btn, .wechat-btn-open, .wechat-btn-close');
+        if (target) hapticFeedback('tap');
+    });
+
+    // Scroll haptic (throttled)
+    let lastScrollHaptic = 0;
+    const overlay = document.querySelector('.ui-overlay');
+    if (overlay) {
+        overlay.addEventListener('scroll', function () {
+            const now = Date.now();
+            if (now - lastScrollHaptic > 300) {
+                hapticFeedback('scroll');
+                lastScrollHaptic = now;
+            }
+        }, { passive: true });
+    }
+})();
+
+
+/* ═══════════════════════════════════════════════
+   i18n — Chinese / English Language Switch
+   ═══════════════════════════════════════════════ */
+(function initI18n() {
+    var translations = {
+        zh: {
+            'telemetry-label-sat': '卫星',
+            'telemetry-label-alt': '高度',
+            'telemetry-label-status': '状态',
+            'telemetry-value-status': '运行中',
+            'subtitle': '遥感 · 连接',
+            'section-contact': '通信频道',
+            'label-tel': '电话 TEL',
+            'label-email': '邮箱 EMAIL',
+            'label-wechat': '微信 WECHAT',
+            'section-data': '数据链路',
+            'social-douyin': '抖音',
+            'social-netease': '网易云',
+            'btn-save': '保存联系人',
+            'btn-share': '分享名片',
+            'nfc-text': 'NFC · 触碰即达',
+            'wechat-title': '添加微信好友',
+            'wechat-id-label': '微信ID',
+            'wechat-copy': '复制',
+            'wechat-open': '打开微信',
+            'wechat-close': '关闭',
+            'wechat-hint': '长按识别二维码 或 复制ID搜索添加',
+            'toast-copied': '已复制',
+            'toast-vcard': '联系人文件已下载',
+            'toast-link': '链接已复制到剪贴板',
+            'toast-wechat-copied': '微信号已复制',
+            'toast-wechat-fail': '请长按手动复制',
+            'share-title': '梁超 · 个人名片',
+            'share-text': '这是梁超的数字名片，NFC触碰即达！',
+            'lang-switch': 'EN',
+        },
+        en: {
+            'telemetry-label-sat': 'SAT',
+            'telemetry-label-alt': 'ALT',
+            'telemetry-label-status': 'STATUS',
+            'telemetry-value-status': 'ACTIVE',
+            'subtitle': 'REMOTE SENSING · CONNECT',
+            'section-contact': 'CONTACT',
+            'label-tel': 'PHONE',
+            'label-email': 'EMAIL',
+            'label-wechat': 'WECHAT',
+            'section-data': 'DATA LINKS',
+            'social-douyin': 'TikTok',
+            'social-netease': 'NetEase',
+            'btn-save': 'Save Contact',
+            'btn-share': 'Share Card',
+            'nfc-text': 'NFC · TAP TO CONNECT',
+            'wechat-title': 'Add WeChat Friend',
+            'wechat-id-label': 'WeChat ID',
+            'wechat-copy': 'Copy',
+            'wechat-open': 'Open WeChat',
+            'wechat-close': 'Close',
+            'wechat-hint': 'Long-press QR code or copy ID to search',
+            'toast-copied': 'Copied',
+            'toast-vcard': 'Contact file downloaded',
+            'toast-link': 'Link copied to clipboard',
+            'toast-wechat-copied': 'WeChat ID copied',
+            'toast-wechat-fail': 'Please long-press to copy manually',
+            'share-title': 'LeongBro · Digital Card',
+            'share-text': 'LeongBro\'s digital card — tap NFC to connect!',
+            'lang-switch': '中',
+        }
+    };
+
+    var currentLang = localStorage.getItem('lang') || 'zh';
+
+    function applyLang(lang) {
+        currentLang = lang;
+        localStorage.setItem('lang', lang);
+        var t = translations[lang];
+
+        // Update data-i18n elements (text content)
+        document.querySelectorAll('[data-i18n]').forEach(function (el) {
+            var key = el.getAttribute('data-i18n');
+            if (t[key]) el.textContent = t[key];
+        });
+
+        // Update lang toggle button
+        var toggleBtn = document.getElementById('langToggle');
+        if (toggleBtn) toggleBtn.textContent = t['lang-switch'];
+
+        // Update html lang attribute
+        document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+    }
+
+    // Expose translation lookup & switchLang globally
+    window.__t = function (key) {
+        return translations[currentLang][key] || key;
+    };
+
+    window.switchLang = function () {
+        var newLang = currentLang === 'zh' ? 'en' : 'zh';
+        applyLang(newLang);
+        hapticFeedback('tap');
+    };
+
+    // Apply saved language on load
+    applyLang(currentLang);
 })();

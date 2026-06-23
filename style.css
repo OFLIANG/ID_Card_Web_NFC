@@ -52,6 +52,16 @@ html, body {
     pointer-events: none;
 }
 
+/* ═══════ 1b. Particle Canvas (mouse/touch) ═══════ */
+#particle-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 3;
+    pointer-events: none;
+}
+
 /* ═══════ 2. UI Overlay ═══════ */
 .ui-overlay {
     position: fixed;
@@ -105,6 +115,31 @@ html, body {
 @keyframes blink {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.3; }
+}
+
+/* ═══════ 3b. Language Toggle ═══════ */
+.lang-toggle {
+    background: rgba(0, 229, 255, 0.1);
+    border: 1px solid rgba(0, 229, 255, 0.25);
+    color: var(--primary);
+    font-family: 'Orbitron', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    letter-spacing: 0.5px;
+    pointer-events: auto;
+    margin-left: 4px;
+}
+.lang-toggle:hover {
+    background: rgba(0, 229, 255, 0.2);
+    border-color: var(--primary);
+    box-shadow: 0 0 12px rgba(0, 229, 255, 0.3);
+}
+.lang-toggle:active {
+    transform: scale(0.95);
 }
 
 /* ═══════ 4. Glass Card ═══════ */
@@ -415,13 +450,13 @@ html, body {
 
 /* ═══════ 11. NFC Footer ═══════ */
 .nfc-footer {
-    flex-shrink: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 8px;
-    padding: 16px 0 24px;
-    position: relative;
+    padding: 16px 0 0;
+    margin-top: 16px;
+    border-top: 1px solid rgba(0, 229, 255, 0.1);
 }
 .signal-rings {
     position: absolute;
