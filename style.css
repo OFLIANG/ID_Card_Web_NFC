@@ -30,6 +30,7 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
 }
 
 html,
@@ -80,7 +81,8 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    pointer-events: none;
+    pointer-events: auto;
+    touch-action: pan-y;
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
@@ -88,10 +90,6 @@ body {
     padding: 0 16px;
     padding-top: env(safe-area-inset-top, 0);
     padding-bottom: env(safe-area-inset-bottom, 0);
-}
-
-.ui-overlay>* {
-    pointer-events: auto;
 }
 
 /* ═══════ 3. Telemetry Bar ═══════ */
@@ -212,6 +210,7 @@ body {
     overflow: visible;
     opacity: 0;
     animation: cardReveal 1s ease 0.5s forwards;
+    touch-action: pan-y;
 }
 
 .glass-card::before {
