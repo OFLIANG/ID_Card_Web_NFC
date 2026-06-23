@@ -661,3 +661,58 @@ window.launchWeChat = function() {
     // Fallback: close modal after a moment
     setTimeout(() => closeWeChatModal(), 2000);
 };
+
+/* ── WeChat Link: copy ID + jump to WeChat ── */
+(function initWeChatLink() {
+    const wechatLink = document.getElementById('wechatLink');
+    if (!wechatLink) return;
+
+    wechatLink.addEventListener('click', function(e) {
+        e.preventDefault();
+        const wechatId = 'Life_Copy';
+
+        // 1. Copy WeChat ID to clipboard
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(wechatId).then(function() {
+                showToast('微信号已复制');
+            }).catch(function() {
+                fallbackCopy(wechatId);
+            });
+        } else {
+            fallbackCopy(wechatId);
+        }
+
+        // 2. Try to open WeChat app (after a short delay to allow copy)
+        setTimeout(function() {
+            window.location.href = 'weixin://';
+        }, 500);
+    });
+
+    function fallbackCopy(text) {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+            document.execCommand('copy');
+            showToast('微信号已复制');
+        } catch (err) {
+            showToast('请长按手动复制');
+        }
+        document.body.removeChild(ta);
+    }
+
+    function showToast(msg) {
+        var toast = document.getElementById('toast');
+        var toastText = document.getElementById('toastText');
+        if (toast && toastText) {
+            toastText.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(function() {
+                toast.classList.remove('show');
+            }, 2000);
+        }
+    }
+})();
