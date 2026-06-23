@@ -1,0 +1,133 @@
+# 🔗 NFC 智能名片
+
+> 手机 NFC 触碰即达的个人数字名片 — 简约科技风 + 动态粒子动效
+
+## ✨ 功能特性
+
+| 功能 | 说明 |
+|------|------|
+| 📲 **保存联系人** | 一键下载 `.vcf` 文件，自动添加到手机通讯录 |
+| 📤 **分享名片** | 支持 Web Share API，一键分享到社交平台 |
+| 🎆 **粒子动效背景** | 轻量 Canvas 粒子动画，支持鼠标/触摸互动 |
+| 🪟 **玻璃拟态 UI** | 半透明磨砂卡片 + 渐变发光效果 |
+| 🔗 **社交链接** | 支持 GitHub、小红书、抖音、B站、X/Twitter、博客 |
+| 📱 **移动端优先** | 针对 NFC 扫描场景，完美适配手机 |
+| 💚 **微信复制** | 点击即可复制微信号到剪贴板 |
+
+## 🚀 快速开始
+
+### 1. 修改个人信息
+
+打开 `main.js`，找到顶部的 `CONFIG` 对象，修改为你自己的信息：
+
+```js
+const CONFIG = {
+    name: '你的名字',
+    title: '你的职业 / 标语',
+    tags: ['前端开发', '摄影爱好者', '旅行者'],
+
+    phone: '+86 138-0000-0000',
+    email: 'your@email.com',
+    wechat: 'your_wechat_id',
+
+    social: {
+        github: 'https://github.com/yourname',
+        xiaohongshu: 'https://www.xiaohongshu.com/user/xxx',
+        douyin: 'https://www.douyin.com/user/xxx',
+        bilibili: 'https://space.bilibili.com/uid',
+        twitter: 'https://x.com/yourname',
+        blog: 'https://yourblog.com',
+    }
+};
+```
+
+> 💡 不需要的社交链接留空字符串 `''` 即可自动隐藏对应图标。
+
+### 2. 替换头像
+
+将你的头像图片命名为 `avatar.jpg` 放在项目根目录，或修改 [index.html](index.html) 中 `<img>` 标签的 `src` 属性。
+
+### 3. 修改页面标题和主题色
+
+打开 [index.html](index.html) 修改 `<title>` 标签。
+
+如需调整主题色，编辑 [style.css](style.css) 顶部的 CSS 变量：
+
+```css
+:root {
+    --accent: #63b3ff;          /* 主题强调色 */
+    --bg-primary: #0a0e1a;     /* 背景色 */
+    --purple: #a78bfa;          /* 渐变辅助色 */
+}
+```
+
+## 📦 部署
+
+本项目是纯静态网站（HTML + CSS + JS），无需任何构建工具。
+
+### 方式一：GitHub Pages（推荐）
+
+```bash
+git init
+git add .
+git commit -m "初始化 NFC 名片"
+git remote add origin https://github.com/yourname/nfc-card.git
+git push -u origin main
+```
+
+然后在 GitHub 仓库 Settings → Pages → Source 选择 `main` 分支即可。
+
+访问地址：`https://yourname.github.io/nfc-card/`
+
+### 方式二：Netlify / Vercel
+
+直接拖拽项目文件夹到 [Netlify Drop](https://app.netlify.com/drop) 即可部署。
+
+### 方式三：NFC 写入
+
+部署完成后，使用 NFC 工具 App（如 `NFC Tools`）将部署后的 URL 写入你的 NFC 芯片。
+
+写入类型选择 **URL / URI**，粘贴你的网站地址即可。
+
+## 📁 项目结构
+
+```
+ID_Card_Web_NFC/
+├── index.html    # 主页面
+├── style.css     # 样式（科技风主题）
+├── main.js       # 交互逻辑 + 粒子动效
+├── avatar.jpg    # 头像图片（需自行添加）
+└── README.md     # 说明文档
+```
+
+## 🎨 自定义指南
+
+### 添加新的社交平台
+
+1. 在 [main.js](main.js) 的 `CONFIG.social` 中添加新字段
+2. 在 [index.html](index.html) 的 `.social-grid` 中添加新的 `<a>` 元素
+3. 如需新颜色，在 [style.css](style.css) 中添加对应的 `.social-item__icon--xxx` 样式
+
+### 调整粒子效果
+
+编辑 [main.js](main.js) 中 `initParticles()` 函数的参数：
+
+| 参数 | 位置 | 说明 |
+|------|------|------|
+| 粒子数量 | `count` 计算行 | 公式中 `12000` 越小粒子越多 |
+| 连线距离 | `drawLines()` 中 `maxDist` | 控制粒子间连线的最大距离 |
+| 粒子速度 | `Particle` 类 `speedX/speedY` | 控制粒子移动速度 |
+| 粒子颜色 | `Particle` 类 `draw()` 方法 | 修改 `rgba` 值 |
+
+## 📋 浏览器兼容性
+
+| 功能 | Chrome | Safari | Firefox | Edge |
+|------|--------|--------|---------|------|
+| 粒子动效 | ✅ | ✅ | ✅ | ✅ |
+| vCard 下载 | ✅ | ✅ | ✅ | ✅ |
+| Web Share API | ✅ | ✅ | ❌ (降级复制) | ✅ |
+| Clipboard API | ✅ | ✅ | ✅ | ✅ |
+
+## 📄 License
+
+MIT License - 自由使用和修改。
