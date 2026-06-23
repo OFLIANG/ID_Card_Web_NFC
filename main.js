@@ -1356,6 +1356,7 @@ function hapticFeedback(type) {
 
     var zoomLevelEl = document.getElementById('zoomLevel');
     var uiOverlay = document.querySelector('.ui-overlay');
+    var cardContainer = document.querySelector('.card-container');
 
     function getStorageZoom() {
         try {
@@ -1371,14 +1372,20 @@ function hapticFeedback(type) {
     function applyZoom(scale) {
         zoomLevel = Math.round(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, scale)) * 100) / 100;
 
-        // Use CSS transform on ui-overlay instead of body.style.zoom
-        // This keeps the 3D canvas (globe) always centered in viewport
-        if (uiOverlay) {
-            uiOverlay.style.transformOrigin = 'center center';
-            uiOverlay.style.transform = 'scale(' + zoomLevel + ')';
+        // Scale ONLY the card content, not the entire overlay
+        // This keeps zoom controls, FAB button, scrollbar pinned to screen edges
+        if (cardContainer) {
+            cardContainer.style.transformOrigin = 'center top';
+            cardContainer.style.transform = 'scale(' + zoomLevel + ')';
         }
 
-        // Keep ui-overlay scroll centered after zoom change
+        // Scale the 3D globe by adjusting the camera zoom factor
+        if (typeof camera !== 'undefined' && camera) {
+            camera.zoom = zoomLevel;
+            camera.updateProjectionMatrix();
+        }
+
+        // Keep overlay scroll centered after zoom change
         if (uiOverlay) {
             var scrollTarget = (uiOverlay.scrollHeight - uiOverlay.clientHeight) / 2;
             uiOverlay.scrollTo({ top: scrollTarget, behavior: 'instant' });
@@ -1444,6 +1451,8 @@ function hapticFeedback(type) {
         if (card) {
             card.style.animation = 'none';   // clear animation so inline opacity takes effect
             card.style.opacity = cardOpacity / 100;
+            // When fully transparent, disable all pointer events so links/buttons are unreachable
+            card.style.pointerEvents = cardOpacity === 0 ? 'none' : 'auto';
         }
         var levelEl = document.getElementById('opacityLevel');
         if (levelEl) levelEl.textContent = cardOpacity + '%';
