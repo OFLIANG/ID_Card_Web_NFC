@@ -786,17 +786,19 @@ window.launchWeChat = function() {
             this.speed = 4 + Math.random() * 6;
             this.vx = Math.cos(this.angle) * this.speed;
             this.vy = Math.sin(this.angle) * this.speed;
-            this.tailLength = 60 + Math.random() * 100;
-            this.size = 1.5 + Math.random() * 2;
+            this.tailLength = 30 + Math.random() * 50;
+            this.size = 0.6 + Math.random() * 1.2;
             this.life = 1.0;
             this.fadeSpeed = 0.003 + Math.random() * 0.005;
-            this.brightness = 0.7 + Math.random() * 0.3;
+            this.brightness = 0.2 + Math.random() * 0.5;
 
-            // Slight color variation
-            this.headColor = METEOR_HEAD[Math.floor(Math.random() * METEOR_HEAD.length)];
-            this.bodyColor = METEOR_BODY[Math.floor(Math.random() * METEOR_BODY.length)];
-            this.tailColor = METEOR_TAIL[Math.floor(Math.random() * METEOR_TAIL.length)];
-            this.ionColor = METEOR_ION[Math.floor(Math.random() * METEOR_ION.length)];
+            // White/bright meteor colors with random alpha variation
+            const whitePalette = ['#ffffff', '#f5f5f5', '#e0e0e0', '#eceff1', '#fffde7', '#fff9c4'];
+            this.headColor = '#ffffff';
+            this.bodyColor = whitePalette[Math.floor(Math.random() * whitePalette.length)];
+            this.tailColor = whitePalette[Math.floor(Math.random() * whitePalette.length)];
+            this.ionColor = whitePalette[Math.floor(Math.random() * whitePalette.length)];
+            this.randomAlpha = 0.15 + Math.random() * 0.45;
         }
 
         update() {
@@ -818,8 +820,8 @@ window.launchWeChat = function() {
             const nx = trailX / len;
             const ny = trailY / len;
 
-            // Draw ionization trail (blue, wide, faint)
-            ctx.globalAlpha = alpha * 0.08;
+            // Draw ionization trail (white, wide, very faint)
+            ctx.globalAlpha = alpha * this.randomAlpha * 0.12;
             const ionGrad = ctx.createLinearGradient(
                 this.x, this.y,
                 this.x + nx * this.tailLength * 1.3, this.y + ny * this.tailLength * 1.3
@@ -833,8 +835,8 @@ window.launchWeChat = function() {
             ctx.lineTo(this.x + nx * this.tailLength * 1.3, this.y + ny * this.tailLength * 1.3);
             ctx.stroke();
 
-            // Draw main tail (red → orange gradient)
-            ctx.globalAlpha = alpha * 0.35;
+            // Draw main tail (white fading out)
+            ctx.globalAlpha = alpha * this.randomAlpha * 0.5;
             const tailGrad = ctx.createLinearGradient(
                 this.x, this.y,
                 this.x + nx * this.tailLength, this.y + ny * this.tailLength
@@ -850,15 +852,15 @@ window.launchWeChat = function() {
             ctx.lineTo(this.x + nx * this.tailLength, this.y + ny * this.tailLength);
             ctx.stroke();
 
-            // Draw hot core (bright white-yellow)
-            ctx.globalAlpha = alpha * 0.9;
+            // Draw hot core (bright white)
+            ctx.globalAlpha = alpha * this.randomAlpha;
             ctx.beginPath();
             ctx.arc(this.x, this.y, this.size * 0.6, 0, Math.PI * 2);
             ctx.fillStyle = this.headColor;
             ctx.fill();
 
-            // Head glow
-            ctx.globalAlpha = alpha * 0.25;
+            // Head glow (white)
+            ctx.globalAlpha = alpha * this.randomAlpha * 0.3;
             const headGlow = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size * 4);
             headGlow.addColorStop(0, this.headColor);
             headGlow.addColorStop(0.5, this.bodyColor);
@@ -1065,13 +1067,12 @@ window.launchWeChat = function() {
     if (isMobile) {
         document.addEventListener('touchstart', function (e) {
             const touch = e.touches[0];
-            spawnTouchBurst(touch.clientX, touch.clientY);
-            hapticFeedback('tap');
+            // No tap burst or haptic — only swipe trail
         }, { passive: true });
 
         document.addEventListener('touchmove', function (e) {
             const touch = e.touches[0];
-            const colorPool = [...METEOR_BODY, ...METEOR_TAIL];
+            const colorPool = ['#ffffff', '#fff8e1', '#e0e0e0', '#b0bec5'];
             const color = colorPool[Math.floor(Math.random() * colorPool.length)];
             sparkParticles.push(new Spark(
                 touch.clientX + (Math.random() - 0.5) * 8,
@@ -1091,7 +1092,8 @@ window.launchWeChat = function() {
    Haptic / Vibration Feedback (Mobile)
    ═══════════════════════════════════════════════ */
 function hapticFeedback(type) {
-    if (!navigator.vibrate) return;
+    // Disabled — user requested no tap feedback on mobile
+    return;
     switch (type) {
         case 'tap':     navigator.vibrate(8);   break;   // button / tap
         case 'scroll':  navigator.vibrate(4);   break;   // scroll (very subtle)
@@ -1192,7 +1194,7 @@ function hapticFeedback(type) {
         }
     };
 
-    var currentLang = localStorage.getItem('lang') || 'zh';
+    var currentLang = localStorage.getItem('lang') || 'en';
 
     function applyLang(lang) {
         currentLang = lang;
@@ -1226,4 +1228,103 @@ function hapticFeedback(type) {
 
     // Apply saved language on load
     applyLang(currentLang);
+})();
+
+/* ══════════════════════════════════════════════
+   Part F: UI Zoom Control
+   - Button zoom (bottom-right floating panel)
+   - Pinch-to-zoom on mobile
+   ══════════════════════════════════════════════ */
+
+(function () {
+    var zoomLevel = 1.0;
+    var ZOOM_MIN = 0.3;
+    var ZOOM_MAX = 5.0;
+    var ZOOM_STEP = 0.15;
+    var ZOOM_SMOOTH = 0.08;  // interpolation factor for pinch smoothness
+
+    var zoomLevelEl = document.getElementById('zoomLevel');
+    var uiOverlay = document.querySelector('.ui-overlay');
+
+    function getStorageZoom() {
+        try {
+            var v = parseFloat(localStorage.getItem('nfc-zoom'));
+            return isNaN(v) ? 1.0 : Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, v));
+        } catch (e) { return 1.0; }
+    }
+
+    function saveStorageZoom(v) {
+        try { localStorage.setItem('nfc-zoom', v); } catch (e) {}
+    }
+
+    function applyZoom(scale) {
+        zoomLevel = Math.round(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, scale)) * 100) / 100;
+        document.body.style.zoom = zoomLevel;
+        if (zoomLevelEl) zoomLevelEl.textContent = Math.round(zoomLevel * 100) + '%';
+        saveStorageZoom(zoomLevel);
+    }
+
+    // --- Button zoom ---
+    window.zoomIn = function () {
+        applyZoom(zoomLevel + ZOOM_STEP);
+        hapticFeedback('tap');
+    };
+
+    window.zoomOut = function () {
+        applyZoom(zoomLevel - ZOOM_STEP);
+        hapticFeedback('tap');
+    };
+
+    window.zoomReset = function () {
+        applyZoom(1.0);
+        hapticFeedback('tap');
+    };
+
+    // --- Pinch-to-zoom ---
+    var pinchStartDist = 0;
+    var pinchStartZoom = 1.0;
+    var isPinching = false;
+
+    function getTouchDist(touches) {
+        var dx = touches[0].clientX - touches[1].clientX;
+        var dy = touches[0].clientY - touches[1].clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    document.addEventListener('touchstart', function (e) {
+        if (e.touches.length === 2) {
+            isPinching = true;
+            pinchStartDist = getTouchDist(e.touches);
+            pinchStartZoom = zoomLevel;
+        }
+    }, { passive: true });
+
+    document.addEventListener('touchmove', function (e) {
+        if (!isPinching || e.touches.length !== 2) return;
+        var currentDist = getTouchDist(e.touches);
+        var ratio = currentDist / pinchStartDist;
+        applyZoom(pinchStartZoom * ratio);
+    }, { passive: true });
+
+    document.addEventListener('touchend', function (e) {
+        if (isPinching) {
+            isPinching = false;
+            hapticFeedback('tap');
+        }
+    }, { passive: true });
+
+    // --- Mouse wheel zoom (Ctrl + scroll) ---
+    document.addEventListener('wheel', function (e) {
+        if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            var delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+            applyZoom(zoomLevel + delta);
+        }
+    }, { passive: false });
+
+    // Restore saved zoom on load
+    var saved = getStorageZoom();
+    if (saved !== 1.0) {
+        applyZoom(saved);
+    }
 })();

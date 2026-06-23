@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.3, maximum-scale=5.0, user-scalable=yes">
     <title>LeongBro_IDCard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link
@@ -48,6 +48,20 @@
             <button class="lang-toggle" id="langToggle" onclick="switchLang()" data-i18n="lang-switch">EN</button>
         </div>
 
+        <!-- 缩放控制 -->
+        <div class="zoom-controls" id="zoomControls">
+            <button class="zoom-btn" id="zoomIn" onclick="zoomIn()" title="放大">
+                <i class="fas fa-plus"></i>
+            </button>
+            <span class="zoom-level" id="zoomLevel">100%</span>
+            <button class="zoom-btn" id="zoomOut" onclick="zoomOut()" title="缩小">
+                <i class="fas fa-minus"></i>
+            </button>
+            <button class="zoom-btn zoom-reset" id="zoomReset" onclick="zoomReset()" title="重置">
+                <i class="fas fa-expand"></i>
+            </button>
+        </div>
+
         <!-- 主内容卡片 -->
         <div class="card-container">
             <div class="glass-card" id="mainCard">
@@ -61,7 +75,8 @@
                 </div>
 
                 <!-- 名字 -->
-                <h1 class="name">梁超</h1>
+                <h1 class="name-cn">梁超</h1>
+                <h2 class="name-en">LeongBro</h2>
                 <div class="subtitle-line">
                     <span class="sub-dash"></span>
                     <span class="sub-text" data-i18n="subtitle">遥感 · 连接</span>
@@ -151,6 +166,9 @@
 
             </div>
         </div>
+
+        <!-- 底部留白，手机端上下滑动用 -->
+        <div class="scroll-spacer"></div>
 
         <!-- 微信二维码弹窗 -->
         <div class="wechat-modal" id="wechatModal">
