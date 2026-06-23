@@ -27,8 +27,8 @@ camera.lookAt(0, 0, 0);
 /* ── Responsive camera: ensure globe always fully visible ── */
 function updateCameraForScreen() {
     var aspect = window.innerWidth / window.innerHeight;
-    var globeRadius = 1.5;
-    var satMaxRadius = 2.8;  // max satellite orbit + margin
+    var globeRadius = 2.0;
+    var satMaxRadius = 3.4;  // max satellite orbit + margin
     var vFOV = 50;
     var fovRad = vFOV * Math.PI / 180;
     var tanHalf = Math.tan(fovRad / 2);
@@ -111,7 +111,7 @@ function createGlobe() {
     const group = new THREE.Group();
 
     // Main wireframe sphere (longitude/latitude grid)
-    const sphereGeo = new THREE.SphereGeometry(1.5, 48, 32);
+    const sphereGeo = new THREE.SphereGeometry(2.0, 48, 32);
     const wireframeMat = new THREE.MeshBasicMaterial({
         color: 0x00e5ff,
         wireframe: true,
@@ -130,8 +130,8 @@ function createGlobe() {
 
     // Latitude rings
     for (let lat = -60; lat <= 60; lat += 30) {
-        const r = 1.505 * Math.cos(lat * Math.PI / 180);
-        const y = 1.505 * Math.sin(lat * Math.PI / 180);
+        const r = 2.005 * Math.cos(lat * Math.PI / 180);
+        const y = 2.005 * Math.sin(lat * Math.PI / 180);
         const ringGeo = new THREE.BufferGeometry();
         const pts = [];
         for (let i = 0; i <= 64; i++) {
@@ -149,9 +149,9 @@ function createGlobe() {
         for (let i = 0; i <= 64; i++) {
             const a = (i / 64) * Math.PI * 2;
             pts.push(new THREE.Vector3(
-                1.505 * Math.cos(a * 1) * Math.sin(lng * Math.PI / 180),
-                1.505 * Math.sin(a * 1 - Math.PI / 2),
-                1.505 * Math.cos(a * 1) * Math.cos(lng * Math.PI / 180)
+                2.005 * Math.cos(a * 1) * Math.sin(lng * Math.PI / 180),
+                2.005 * Math.sin(a * 1 - Math.PI / 2),
+                2.005 * Math.cos(a * 1) * Math.cos(lng * Math.PI / 180)
             ));
         }
         ringGeo.setFromPoints(pts);
@@ -159,7 +159,7 @@ function createGlobe() {
     }
 
     // Inner glowing solid sphere
-    const innerGeo = new THREE.SphereGeometry(1.48, 64, 64);
+    const innerGeo = new THREE.SphereGeometry(1.98, 64, 64);
     const innerMat = new THREE.MeshPhongMaterial({
         color: 0x0a1a30,
         emissive: 0x002040,
@@ -171,7 +171,7 @@ function createGlobe() {
     group.add(new THREE.Mesh(innerGeo, innerMat));
 
     // Atmosphere glow (Fresnel-like outer shell)
-    const atmosphereGeo = new THREE.SphereGeometry(1.7, 64, 64);
+    const atmosphereGeo = new THREE.SphereGeometry(2.2, 64, 64);
     const atmosphereMat = new THREE.ShaderMaterial({
         uniforms: {
             glowColor: { value: new THREE.Color(0x00e5ff) },
@@ -225,7 +225,7 @@ function createDataPoints() {
     points.forEach(p => {
         const phi = (90 - p.lat) * (Math.PI / 180);
         const theta = (p.lng + 180) * (Math.PI / 180);
-        const r = 1.52;
+        const r = 2.02;
 
         const x = -r * Math.sin(phi) * Math.cos(theta);
         const y = r * Math.cos(phi);
@@ -379,7 +379,7 @@ function createScanLine() {
 }
 
 const scanLine = createScanLine();
-scanLine.mesh.position.y = 1.5;
+scanLine.mesh.position.y = 2.0;
 scene.add(scanLine.mesh);
 
 /* ── Connection Lines (satellite to earth) ── */
@@ -547,9 +547,9 @@ function animate() {
 
         // To nearest point on globe surface
         const dir = satPos.clone().normalize();
-        positions[3] = dir.x * 1.5;
-        positions[4] = dir.y * 1.5;
-        positions[5] = dir.z * 1.5;
+        positions[3] = dir.x * 2.0;
+        positions[4] = dir.y * 2.0;
+        positions[5] = dir.z * 2.0;
 
         conn.line.geometry.attributes.position.needsUpdate = true;
         conn.line.material.opacity = 0.1 + 0.1 * Math.sin(time * 3);
@@ -557,8 +557,8 @@ function animate() {
 
     // ── Scan line sweep ──
     scanLine.mesh.position.y += scanLine.speed * scanLine.direction;
-    if (scanLine.mesh.position.y > 1.5) scanLine.direction = -1;
-    if (scanLine.mesh.position.y < -1.5) scanLine.direction = 1;
+    if (scanLine.mesh.position.y > 2.0) scanLine.direction = -1;
+    if (scanLine.mesh.position.y < -2.0) scanLine.direction = 1;
     scanLine.mesh.material.opacity = 0.15 + 0.1 * Math.sin(time * 2);
     scanLine.mesh.lookAt(camera.position);
 
@@ -741,6 +741,66 @@ window.launchWeChat = function() {
             }, 2000);
         }
     }
+})();
+
+/* ── Tennis Modal ── */
+window.openTennisModal = function() {
+    var modal = document.getElementById('tennisModal');
+    if (!modal) return;
+    modal.classList.add('show');
+    // Generate QR code for WeChat (Life_Copy)
+    generateTennisQR();
+};
+
+window.closeTennisModal = function() {
+    var modal = document.getElementById('tennisModal');
+    if (modal) modal.classList.remove('show');
+};
+
+function generateTennisQR() {
+    var qrContainer = document.getElementById('tennisQR');
+    if (!qrContainer || qrContainer.querySelector('canvas')) return; // already generated
+    // Use a simple QR-like visual (WeChat search for Life_Copy)
+    var qrUrl = 'https://weixin.qq.com/r/' + encodeURIComponent('Life_Copy');
+    // If QRCode lib not available, create a simple placeholder
+    try {
+        if (typeof QRCode !== 'undefined') {
+            new QRCode(qrContainer, {
+                text: qrUrl,
+                width: 88,
+                height: 88,
+                colorDark: '#1a1a2e',
+                colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.M
+            });
+        } else {
+            // Fallback: create a mini canvas placeholder with WeChat icon
+            var c = document.createElement('canvas');
+            c.width = 88; c.height = 88;
+            var cx = c.getContext('2d');
+            cx.fillStyle = '#ffffff';
+            cx.fillRect(0, 0, 88, 88);
+            cx.fillStyle = '#07c160';
+            cx.font = 'bold 14px sans-serif';
+            cx.textAlign = 'center';
+            cx.fillText('WeChat', 44, 40);
+            cx.font = '11px sans-serif';
+            cx.fillText('Life_Copy', 44, 58);
+            qrContainer.appendChild(c);
+        }
+    } catch(e) {
+        // silent fail
+    }
+}
+
+(function initTennisLink() {
+    var tennisLink = document.getElementById('tennisLink');
+    if (!tennisLink) return;
+    tennisLink.addEventListener('click', function(e) {
+        e.preventDefault();
+        hapticFeedback('tap');
+        openTennisModal();
+    });
 })();
 
 /* ═══════════════════════════════════════════════
@@ -1164,6 +1224,7 @@ function hapticFeedback(type) {
             'section-data': '数据链路',
             'social-douyin': '抖音',
             'social-netease': '网易云音乐',
+            'social-tennis': '网球助教',
             'btn-save': '保存联系人',
             'btn-share': '分享名片',
             'nfc-text': 'NFC · 触碰即达',
@@ -1173,6 +1234,20 @@ function hapticFeedback(type) {
             'wechat-open': '打开微信',
             'wechat-close': '关闭',
             'wechat-hint': '长按识别二维码 或 复制ID搜索添加',
+            'tennis-title': '挥拍青春 · 网球助教',
+            'tennis-subtitle': '青春不等待，球场见真章',
+            'tennis-label-location': '训练地点',
+            'tennis-location': '校网球场',
+            'tennis-label-levels': '课程分级',
+            'tennis-levels': '0基础 / 进阶 / 备战',
+            'tennis-label-form': '授课形式',
+            'tennis-form': '1v1 / 1v多 / 小班课',
+            'tennis-label-coach': '教练',
+            'tennis-coach': '梁超',
+            'tennis-qr-label': '扫码添加教练微信',
+            'tennis-btn-call': '电话咨询',
+            'tennis-btn-wechat': '微信咨询',
+            'tennis-close': '关闭',
             'toast-copied': '已复制',
             'toast-vcard': '联系人文件已下载',
             'toast-link': '链接已复制到剪贴板',
@@ -1195,6 +1270,7 @@ function hapticFeedback(type) {
             'section-data': 'DATA LINKS',
             'social-douyin': 'TikTok',
             'social-netease': 'NetEase Music',
+            'social-tennis': 'Tennis Coach',
             'btn-save': 'Save Contact',
             'btn-share': 'Share Card',
             'nfc-text': 'NFC · TAP TO CONNECT',
@@ -1204,6 +1280,20 @@ function hapticFeedback(type) {
             'wechat-open': 'Open WeChat',
             'wechat-close': 'Close',
             'wechat-hint': 'Long-press QR code or copy ID to search',
+            'tennis-title': 'Swing Youth · Tennis Coach',
+            'tennis-subtitle': 'Youth won\'t wait — see you on the court',
+            'tennis-label-location': 'Location',
+            'tennis-location': 'Campus Tennis Court',
+            'tennis-label-levels': 'Levels',
+            'tennis-levels': 'Beginner / Advanced / Match Prep',
+            'tennis-label-form': 'Format',
+            'tennis-form': '1-on-1 / Group / Small Class',
+            'tennis-label-coach': 'Coach',
+            'tennis-coach': 'LeongBro',
+            'tennis-qr-label': 'Scan to add coach WeChat',
+            'tennis-btn-call': 'Call',
+            'tennis-btn-wechat': 'WeChat',
+            'tennis-close': 'Close',
             'toast-copied': 'Copied',
             'toast-vcard': 'Contact file downloaded',
             'toast-link': 'Link copied to clipboard',
@@ -1282,10 +1372,11 @@ function hapticFeedback(type) {
         zoomLevel = Math.round(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, scale)) * 100) / 100;
         document.body.style.zoom = zoomLevel;
 
-        // Background sync: body.style.zoom already scales all elements
-        // including fixed-position canvases in Chrome/Safari.
-        // Explicit canvas transform would double-scale, so we rely on
-        // the native zoom property for unified visual scaling.
+        // Keep ui-overlay scroll centered after zoom change
+        if (uiOverlay) {
+            var scrollTarget = (uiOverlay.scrollHeight - uiOverlay.clientHeight) / 2;
+            uiOverlay.scrollTo({ top: scrollTarget, behavior: 'instant' });
+        }
 
         if (zoomLevelEl) zoomLevelEl.textContent = Math.round(zoomLevel * 100) + '%';
         saveStorageZoom(zoomLevel);
@@ -1321,8 +1412,79 @@ function hapticFeedback(type) {
             var main = document.getElementById('fabMain');
             if (palette) palette.classList.remove('show');
             if (main) main.classList.remove('active');
+            var opPalette = document.getElementById('fabOpacityPalette');
+            if (opPalette) opPalette.classList.remove('show');
         }
     });
+
+    // --- Opacity Control ---
+    var cardOpacity = 100;
+    var isDraggingOpacity = false;
+
+    function applyCardOpacity(val) {
+        cardOpacity = Math.max(0, Math.min(100, Math.round(val)));
+        var card = document.getElementById('mainCard');
+        if (card) card.style.opacity = cardOpacity / 100;
+        var levelEl = document.getElementById('opacityLevel');
+        if (levelEl) levelEl.textContent = cardOpacity + '%';
+        var fill = document.getElementById('opacityFill');
+        if (fill) fill.style.width = (cardOpacity) + '%';
+        var thumb = document.getElementById('opacityThumb');
+        if (thumb) {
+            // At 0% thumb is at far left, at 100% thumb is at far right
+            thumb.style.left = cardOpacity + '%';
+            thumb.style.right = 'auto';
+            thumb.style.transform = 'translate(-50%, -50%)';
+        }
+    }
+
+    function updateOpacityFromPointer(clientX) {
+        var track = document.getElementById('opacityTrack');
+        if (!track) return;
+        var rect = track.getBoundingClientRect();
+        var ratio = 1 - (clientX - rect.left) / rect.width;
+        applyCardOpacity(ratio * 100);
+    }
+
+    document.addEventListener('mousedown', function (e) {
+        if (e.target.id === 'opacityThumb' || e.target.id === 'opacityTrack') {
+            isDraggingOpacity = true;
+            updateOpacityFromPointer(e.clientX);
+            e.preventDefault();
+        }
+    });
+    document.addEventListener('mousemove', function (e) {
+        if (isDraggingOpacity) updateOpacityFromPointer(e.clientX);
+    });
+    document.addEventListener('mouseup', function () { isDraggingOpacity = false; });
+
+    document.addEventListener('touchstart', function (e) {
+        if (e.target.id === 'opacityThumb' || e.target.id === 'opacityTrack') {
+            isDraggingOpacity = true;
+            updateOpacityFromPointer(e.touches[0].clientX);
+            e.preventDefault();
+        }
+    }, { passive: false });
+    document.addEventListener('touchmove', function (e) {
+        if (isDraggingOpacity) {
+            updateOpacityFromPointer(e.touches[0].clientX);
+            e.preventDefault();
+        }
+    }, { passive: false });
+    document.addEventListener('touchend', function () { isDraggingOpacity = false; });
+
+    window.toggleOpacityPalette = function () {
+        var opPalette = document.getElementById('fabOpacityPalette');
+        if (!opPalette) return;
+        opPalette.classList.toggle('show');
+        // Initialize thumb position on first open
+        if (opPalette.classList.contains('show')) {
+            applyCardOpacity(cardOpacity);
+        }
+    };
+
+    // Initialize opacity display
+    applyCardOpacity(100);
 
     // --- Pinch-to-zoom ---
     var pinchStartDist = 0;

@@ -212,6 +212,7 @@ body {
     opacity: 0;
     animation: cardReveal 1s ease 0.5s forwards;
     touch-action: pan-y;
+    transition: opacity 0.4s ease;
 }
 
 .glass-card::before {
@@ -471,7 +472,7 @@ body {
 /* ═══════ 9. Social Grid ═══════ */
 .social-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 8px;
 }
 
@@ -500,6 +501,18 @@ body {
 .social-item span {
     font-size: 11px;
     letter-spacing: 0.5px;
+    text-align: center;
+    width: 100%;
+}
+
+.social-item .tennis-svg-icon {
+    color: var(--primary);
+    transition: transform 0.3s, filter 0.3s;
+}
+
+.social-item:hover .tennis-svg-icon {
+    transform: scale(1.15);
+    filter: drop-shadow(0 0 10px rgba(0, 229, 255, 0.5));
 }
 
 .social-item:hover,
@@ -856,6 +869,261 @@ body {
     letter-spacing: 0.5px;
 }
 
+/* ═══════ 12b. Tennis Modal ═══════ */
+.tennis-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.tennis-modal.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.tennis-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(5, 5, 16, 0.85);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.tennis-modal-content {
+    position: relative;
+    width: 360px;
+    max-width: 92vw;
+    max-height: 85vh;
+    overflow-y: auto;
+    background: rgba(10, 18, 40, 0.92);
+    border: 1px solid rgba(0, 229, 255, 0.15);
+    border-radius: 20px;
+    padding: 28px 22px 22px;
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    box-shadow:
+        0 0 60px rgba(0, 229, 255, 0.08),
+        inset 0 0 30px rgba(0, 229, 255, 0.03);
+    transform: translateY(20px) scale(0.95);
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tennis-modal.show .tennis-modal-content {
+    transform: translateY(0) scale(1);
+}
+
+/* scrollbar */
+.tennis-modal-content::-webkit-scrollbar { width: 4px; }
+.tennis-modal-content::-webkit-scrollbar-track { background: transparent; }
+.tennis-modal-content::-webkit-scrollbar-thumb { background: rgba(0, 229, 255, 0.2); border-radius: 4px; }
+
+/* Header */
+.tennis-modal-header {
+    text-align: center;
+    margin-bottom: 18px;
+}
+
+.tennis-header-icon {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 10px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(255, 180, 0, 0.2), rgba(255, 100, 0, 0.15));
+    border: 1.5px solid rgba(255, 180, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: #ffb400;
+    animation: tennisPulse 2s ease-in-out infinite;
+}
+
+@keyframes tennisPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 180, 0, 0.2); }
+    50% { box-shadow: 0 0 16px 4px rgba(255, 180, 0, 0.15); }
+}
+
+.tennis-modal-header h3 {
+    font-family: 'Orbitron', monospace;
+    font-size: 16px;
+    font-weight: 700;
+    color: #ffb400;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+}
+
+.tennis-subtitle {
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 0.5px;
+}
+
+/* Poster */
+.tennis-poster-wrap {
+    width: 100%;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 180, 0, 0.12);
+    margin-bottom: 16px;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.tennis-poster-img {
+    width: 100%;
+    display: block;
+    object-fit: cover;
+    transition: transform 0.4s ease;
+}
+
+.tennis-poster-wrap:hover .tennis-poster-img {
+    transform: scale(1.03);
+}
+
+/* Info Grid */
+.tennis-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.tennis-info-card {
+    background: rgba(0, 229, 255, 0.04);
+    border: 1px solid rgba(0, 229, 255, 0.08);
+    border-radius: 12px;
+    padding: 12px 10px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.tennis-info-card:hover {
+    background: rgba(0, 229, 255, 0.08);
+    border-color: rgba(0, 229, 255, 0.18);
+    transform: translateY(-2px);
+}
+
+.tennis-info-icon {
+    font-size: 16px;
+    color: var(--primary);
+    margin-bottom: 6px;
+}
+
+.tennis-info-label {
+    font-family: 'Orbitron', monospace;
+    font-size: 8.5px;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 3px;
+}
+
+.tennis-info-value {
+    font-size: 12px;
+    font-weight: 500;
+    color: #e0e8f0;
+}
+
+/* QR Section */
+.tennis-qr-section {
+    text-align: center;
+    margin-bottom: 16px;
+}
+
+.tennis-qr-code {
+    width: 100px;
+    height: 100px;
+    margin: 0 auto 8px;
+    border-radius: 10px;
+    border: 1px solid rgba(0, 229, 255, 0.12);
+    background: rgba(255, 255, 255, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.tennis-qr-code canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.tennis-qr-label {
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.5px;
+}
+
+/* Action Buttons */
+.tennis-modal-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.tennis-btn-contact,
+.tennis-btn-wechat {
+    padding: 12px;
+    border: none;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-family: 'Noto Sans SC', sans-serif;
+}
+
+.tennis-btn-contact {
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(0, 229, 255, 0.2);
+}
+
+.tennis-btn-contact:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(0, 229, 255, 0.35);
+}
+
+.tennis-btn-wechat {
+    background: #07c160;
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(7, 193, 96, 0.2);
+}
+
+.tennis-btn-wechat:hover {
+    background: #06ad56;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(7, 193, 96, 0.35);
+}
+
+.tennis-btn-close {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-dim);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-family: 'Noto Sans SC', sans-serif;
+}
+
+.tennis-btn-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text);
+}
+
 /* ═══════ 13. Animations ═══════ */
 @keyframes fadeSlideDown {
     from {
@@ -1066,7 +1334,85 @@ body {
     margin: 2px 0;
 }
 
-/* ═══════ 17. Scroll Spacer ═══════ */
+/* ═══════ 17. FAB Opacity Palette ═══════ */
+.fab-opacity-palette {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 200px;
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.35s ease, opacity 0.25s ease, padding 0.35s ease;
+    padding: 0 2px;
+    flex-direction: row;
+    position: relative;
+    left: 0;
+    margin-left: -160px;
+}
+
+.fab-opacity-palette.show {
+    max-height: 60px;
+    opacity: 1;
+    padding: 6px 2px 4px;
+}
+
+.fab-opacity-track {
+    flex: 1;
+    height: 4px;
+    background: rgba(0, 229, 255, 0.12);
+    border-radius: 4px;
+    position: relative;
+    cursor: pointer;
+    touch-action: none;
+}
+
+.fab-opacity-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(90deg, rgba(0, 229, 255, 0.3), var(--primary));
+    border-radius: 4px;
+    pointer-events: none;
+    transition: width 0.1s ease;
+}
+
+.fab-opacity-thumb {
+    position: absolute;
+    top: 50%;
+    left: 100%;
+    width: 14px;
+    height: 14px;
+    background: var(--primary);
+    border: 2px solid rgba(10, 18, 40, 0.8);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    cursor: grab;
+    pointer-events: auto;
+    box-shadow: 0 0 8px rgba(0, 229, 255, 0.4);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.fab-opacity-thumb:active {
+    cursor: grabbing;
+    transform: translate(-50%, -50%) scale(1.25);
+    box-shadow: 0 0 14px rgba(0, 229, 255, 0.6);
+}
+
+.fab-opacity-level {
+    font-family: 'Orbitron', monospace;
+    font-size: 9px;
+    color: var(--primary);
+    opacity: 0.7;
+    letter-spacing: 1px;
+    min-width: 32px;
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* ═══════ 18. Scroll Spacer ═══════ */
 .scroll-spacer {
     width: 100%;
     height: 80px;
