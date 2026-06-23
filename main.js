@@ -748,50 +748,12 @@ window.openTennisModal = function() {
     var modal = document.getElementById('tennisModal');
     if (!modal) return;
     modal.classList.add('show');
-    // Generate QR code for WeChat (Life_Copy)
-    generateTennisQR();
 };
 
 window.closeTennisModal = function() {
     var modal = document.getElementById('tennisModal');
     if (modal) modal.classList.remove('show');
 };
-
-function generateTennisQR() {
-    var qrContainer = document.getElementById('tennisQR');
-    if (!qrContainer || qrContainer.querySelector('canvas')) return; // already generated
-    // Use a simple QR-like visual (WeChat search for Life_Copy)
-    var qrUrl = 'https://weixin.qq.com/r/' + encodeURIComponent('Life_Copy');
-    // If QRCode lib not available, create a simple placeholder
-    try {
-        if (typeof QRCode !== 'undefined') {
-            new QRCode(qrContainer, {
-                text: qrUrl,
-                width: 88,
-                height: 88,
-                colorDark: '#1a1a2e',
-                colorLight: '#ffffff',
-                correctLevel: QRCode.CorrectLevel.M
-            });
-        } else {
-            // Fallback: create a mini canvas placeholder with WeChat icon
-            var c = document.createElement('canvas');
-            c.width = 88; c.height = 88;
-            var cx = c.getContext('2d');
-            cx.fillStyle = '#ffffff';
-            cx.fillRect(0, 0, 88, 88);
-            cx.fillStyle = '#07c160';
-            cx.font = 'bold 14px sans-serif';
-            cx.textAlign = 'center';
-            cx.fillText('WeChat', 44, 40);
-            cx.font = '11px sans-serif';
-            cx.fillText('Life_Copy', 44, 58);
-            qrContainer.appendChild(c);
-        }
-    } catch(e) {
-        // silent fail
-    }
-}
 
 (function initTennisLink() {
     var tennisLink = document.getElementById('tennisLink');

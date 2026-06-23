@@ -1046,11 +1046,14 @@ body {
     align-items: center;
     justify-content: center;
     overflow: hidden;
+    padding: 4px;
 }
 
-.tennis-qr-code canvas {
-    width: 100% !important;
-    height: 100% !important;
+.tennis-qr-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 6px;
 }
 
 .tennis-qr-label {
