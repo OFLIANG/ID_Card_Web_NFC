@@ -1,4 +1,4 @@
-# �️ LeongBro_IDCard · 遥感宇宙主题 NFC 名片
+# LeongBro_IDCard · 遥感宇宙主题 NFC 名片
 
 > 手机 NFC 触碰即达的个人数字名片 — 遥感科技风 + Three.js 3D 地球
 
