@@ -1370,7 +1370,13 @@ function hapticFeedback(type) {
 
     function applyZoom(scale) {
         zoomLevel = Math.round(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, scale)) * 100) / 100;
-        document.body.style.zoom = zoomLevel;
+
+        // Use CSS transform on ui-overlay instead of body.style.zoom
+        // This keeps the 3D canvas (globe) always centered in viewport
+        if (uiOverlay) {
+            uiOverlay.style.transformOrigin = 'center center';
+            uiOverlay.style.transform = 'scale(' + zoomLevel + ')';
+        }
 
         // Keep ui-overlay scroll centered after zoom change
         if (uiOverlay) {
@@ -1421,10 +1427,24 @@ function hapticFeedback(type) {
     var cardOpacity = 100;
     var isDraggingOpacity = false;
 
+    // Remove cardReveal animation after it finishes so JS inline opacity works
+    // (CSS animation with forwards has higher cascade priority than inline styles)
+    function removeCardAnimation() {
+        var card = document.getElementById('mainCard');
+        if (card) {
+            card.style.animation = 'none';
+            card.style.opacity = '1';
+        }
+    }
+    setTimeout(removeCardAnimation, 1600); // 0.5s delay + 1s animation = 1.5s
+
     function applyCardOpacity(val) {
         cardOpacity = Math.max(0, Math.min(100, Math.round(val)));
         var card = document.getElementById('mainCard');
-        if (card) card.style.opacity = cardOpacity / 100;
+        if (card) {
+            card.style.animation = 'none';   // clear animation so inline opacity takes effect
+            card.style.opacity = cardOpacity / 100;
+        }
         var levelEl = document.getElementById('opacityLevel');
         if (levelEl) levelEl.textContent = cardOpacity + '%';
         var fill = document.getElementById('opacityFill');
@@ -1442,7 +1462,7 @@ function hapticFeedback(type) {
         var track = document.getElementById('opacityTrack');
         if (!track) return;
         var rect = track.getBoundingClientRect();
-        var ratio = 1 - (clientX - rect.left) / rect.width;
+        var ratio = (clientX - rect.left) / rect.width;
         applyCardOpacity(ratio * 100);
     }
 
