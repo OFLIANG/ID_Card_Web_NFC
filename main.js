@@ -53,9 +53,15 @@ const sunLight = new THREE.DirectionalLight(0xffffff, 0.25);
 sunLight.position.set(5, 3, 5);
 scene.add(sunLight);
 
+/* Rim light positioned over the Pacific Ocean (away from Asia) */
 const rimLight = new THREE.PointLight(0x00e5ff, 0.8, 20);
-rimLight.position.set(-3, 2, -3);
+rimLight.position.set(3, 2, 3);
 scene.add(rimLight);
+
+/* Secondary subtle glow on the Pacific limb to keep Asia clear */
+const pacificGlow = new THREE.PointLight(0x00e5ff, 0.35, 15);
+pacificGlow.position.set(4, -0.5, 2);
+scene.add(pacificGlow);
 
 /* ── Starfield ── */
 function createStarfield() {
@@ -68,7 +74,7 @@ function createStarfield() {
         const r = 30 + Math.random() * 70;
         const theta = Math.random() * Math.PI * 2;
         const phi = Math.acos(2 * Math.random() - 1);
-        positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
+        positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
         positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
         positions[i * 3 + 2] = r * Math.cos(phi);
 
@@ -171,11 +177,14 @@ function createGlobe() {
     group.add(new THREE.Mesh(innerGeo, innerMat));
 
     // Atmosphere glow (Fresnel-like outer shell)
+    // Lower threshold (0.38) concentrates glow at the limb/edges away from
+    // the globe center, keeping markers and borders clearly visible.
     const atmosphereGeo = new THREE.SphereGeometry(2.2, 64, 64);
     const atmosphereMat = new THREE.ShaderMaterial({
         uniforms: {
             glowColor: { value: new THREE.Color(0x00e5ff) },
             viewVector: { value: camera.position },
+            glowIntensity: { value: 1.0 },
         },
         vertexShader: `
             uniform vec3 viewVector;
@@ -183,16 +192,17 @@ function createGlobe() {
             void main() {
                 vec3 vNormal = normalize(normalMatrix * normal);
                 vec3 vNormel = normalize(normalMatrix * viewVector);
-                intensity = pow(0.55 - dot(vNormal, vNormel), 2.0);
+                intensity = pow(0.38 - dot(vNormal, vNormel), 2.0);
                 gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
             }
         `,
         fragmentShader: `
             uniform vec3 glowColor;
+            uniform float glowIntensity;
             varying float intensity;
             void main() {
-                vec3 glow = glowColor * intensity;
-                gl_FragColor = vec4(glow, intensity * 0.7);
+                vec3 glow = glowColor * intensity * glowIntensity;
+                gl_FragColor = vec4(glow, intensity * glowIntensity * 0.5);
             }
         `,
         side: THREE.FrontSide,
@@ -207,6 +217,8 @@ function createGlobe() {
 }
 
 const globe = createGlobe();
+/* Rotate globe so Asia faces the camera (away from the Pacific glow) */
+globe.group.rotation.y = Math.PI * 0.6;
 scene.add(globe.group);
 
 /* ── Data Points on Globe ── */
@@ -263,6 +275,339 @@ function createDataPoints() {
 
 const dataPoints = createDataPoints();
 scene.add(dataPoints);
+
+/* ── Helper: lat/lng → 3D position on sphere ── */
+function latLngToVector3(lat, lng, radius) {
+    var phi = (90 - lat) * (Math.PI / 180);
+    var theta = (lng + 180) * (Math.PI / 180);
+    var x = -(radius) * Math.sin(phi) * Math.cos(theta);
+    var y = (radius) * Math.cos(phi);
+    var z = (radius) * Math.sin(phi) * Math.sin(theta);
+    return new THREE.Vector3(x, y, z);
+}
+
+/* ── Country Borders + China Enhancement ── */
+(function loadCountryBorders() {
+    var borderGroup = new THREE.Group();
+    var chinaBorderGroup = new THREE.Group();   // China national border (thick, bright)
+    var chinaProvGroup = new THREE.Group();      // China provincial borders
+    var BORDER_RADIUS = 2.008;
+    var loaded = false;
+
+    /* Default country border material (subtle) */
+    var borderMat = new THREE.LineBasicMaterial({
+        color: 0x00e5ff,
+        transparent: true,
+        opacity: 0.12,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+    });
+
+    /* China national border material (prominent, thicker via glow) */
+    var chinaBorderMat = new THREE.LineBasicMaterial({
+        color: 0x00e5ff,
+        transparent: true,
+        opacity: 0.55,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+    });
+
+    /* China national border glow layer (wider, fainter for glow halo) */
+    var chinaBorderGlowMat = new THREE.LineBasicMaterial({
+        color: 0x00b8d4,
+        transparent: true,
+        opacity: 0.2,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+    });
+
+    /* China provincial border material */
+    var chinaProvMat = new THREE.LineBasicMaterial({
+        color: 0x00e5ff,
+        transparent: true,
+        opacity: 0.18,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+    });
+
+    /* Helper: draw line loop from coordinate ring */
+    function drawBorderRing(ring, material, radius, group) {
+        var pts = [];
+        var step = ring.length > 400 ? 2 : 1;
+        for (var i = 0; i < ring.length; i += step) {
+            var c = ring[i];
+            pts.push(latLngToVector3(c[1], c[0], radius));
+        }
+        if (pts.length < 2) return;
+        var lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+        group.add(new THREE.Line(lineGeo, material.clone()));
+    }
+
+    /* Helper: extract all rings from a TopoJSON feature */
+    function extractRings(feature) {
+        var geometries = feature.geometry.type === 'MultiPolygon'
+            ? feature.geometry.coordinates
+            : [feature.geometry.coordinates];
+        var allRings = [];
+        geometries.forEach(function(polygon) {
+            polygon.forEach(function(ring) { allRings.push(ring); });
+        });
+        return allRings;
+    }
+
+    /* 1) Load world country borders (110m, low-res for general countries) */
+    fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
+        .then(function(res) { return res.json(); })
+        .then(function(topo) {
+            var geo = topojson.feature(topo, topo.objects.countries);
+            geo.features.forEach(function(feature) {
+                var id = feature.id || feature.properties && feature.properties.name;
+                var isChina = (id === '156' || id === 'CHN' ||
+                    (feature.properties && feature.properties.name === 'China'));
+
+                var rings = extractRings(feature);
+                rings.forEach(function(ring) {
+                    if (isChina) {
+                        /* China: draw on the enhanced border group (skip here) */
+                        return;
+                    }
+                    drawBorderRing(ring, borderMat, BORDER_RADIUS, borderGroup);
+                });
+            });
+            globe.group.add(borderGroup);
+            loaded = true;
+            console.log('[Globe] Country borders loaded (' + borderGroup.children.length + ' lines)');
+
+            /* Load higher-res China borders separately */
+            loadChinaEnhancedBorders();
+        })
+        .catch(function(err) {
+            console.warn('[Globe] Failed to load country borders:', err);
+        });
+
+    /* 2) Load enhanced China borders (50m resolution + provincial) */
+    function loadChinaEnhancedBorders() {
+        /* Use the 50m countries dataset to get a cleaner China outline */
+        fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json')
+            .then(function(res) { return res.json(); })
+            .then(function(topo) {
+                var geo = topojson.feature(topo, topo.objects.countries);
+                geo.features.forEach(function(feature) {
+                    var id = feature.id || '';
+                    var isChina = (id === '156');
+                    if (!isChina) return;
+
+                    var rings = extractRings(feature);
+
+                    /* Draw China national border: main line (thick) */
+                    rings.forEach(function(ring) {
+                        drawBorderRing(ring, chinaBorderMat, BORDER_RADIUS, chinaBorderGroup);
+                    });
+
+                    /* Draw China national border: glow halo layer (slightly higher) */
+                    rings.forEach(function(ring) {
+                        drawBorderRing(ring, chinaBorderGlowMat, BORDER_RADIUS + 0.003, chinaBorderGroup);
+                    });
+
+                    globe.group.add(chinaBorderGroup);
+                    console.log('[Globe] China national border loaded (' + chinaBorderGroup.children.length + ' lines)');
+                });
+            })
+            .catch(function(err) {
+                console.warn('[Globe] Failed to load China 50m border:', err);
+                /* Fallback: highlight China from the 110m data */
+                highlightChinaFallback();
+            });
+
+        /* Load China admin1 (provincial) boundaries from Natural Earth */
+        fetch('https://cdn.jsdelivr.net/npm/world-atlas@1/world/110m.json')
+            .then(function(res) { return res.json(); })
+            .then(function(topo) {
+                /* Try admin1 subunits if available */
+                if (topo.objects && topo.objects.states) {
+                    var geo = topojson.feature(topo, topo.objects.states);
+                    /* Filter: China admin1 codes are typically 156001..156999 */
+                    geo.features.forEach(function(feature) {
+                        var fId = String(feature.id || '');
+                        /* China admin1 IDs in 110m-states are 156* prefix or 156001-156999 */
+                        if (!fId.startsWith('156')) return;
+                        var rings = extractRings(feature);
+                        rings.forEach(function(ring) {
+                            drawBorderRing(ring, chinaProvMat, BORDER_RADIUS + 0.001, chinaProvGroup);
+                        });
+                    });
+                    if (chinaProvGroup.children.length > 0) {
+                        globe.group.add(chinaProvGroup);
+                        console.log('[Globe] China provincial borders loaded (' + chinaProvGroup.children.length + ' lines)');
+                    }
+                }
+            })
+            .catch(function(err) {
+                console.warn('[Globe] Province borders load skipped:', err.message);
+            });
+
+        /* Also try the dedicated China admin GeoJSON for higher detail */
+        fetch('https://raw.githubusercontent.com/nicholasmuni/geojson-china/master/china_provinces.geojson')
+            .then(function(res) { return res.json(); })
+            .then(function(geojson) {
+                geojson.features.forEach(function(feature) {
+                    var geometries = feature.geometry.type === 'MultiPolygon'
+                        ? feature.geometry.coordinates
+                        : [feature.geometry.coordinates];
+                    geometries.forEach(function(polygon) {
+                        polygon.forEach(function(ring) {
+                            drawBorderRing(ring, chinaProvMat, BORDER_RADIUS + 0.001, chinaProvGroup);
+                        });
+                    });
+                });
+                /* Avoid duplicate additions */
+                if (!globe.group.children.includes(chinaProvGroup) && chinaProvGroup.children.length > 0) {
+                    globe.group.add(chinaProvGroup);
+                    console.log('[Globe] China provinces (detailed) loaded (' + chinaProvGroup.children.length + ' lines)');
+                }
+            })
+            .catch(function() {
+                /* Silently ignore — the 110m states fallback may have already added provinces */
+            });
+    }
+
+    function highlightChinaFallback() {
+        /* If 50m load fails, try to enhance China from the already-loaded 110m borders */
+        borderGroup.children.forEach(function(line) {
+            if (line.material && line.material.opacity < 0.15) {
+                /* We can't distinguish China from 110m alone, so leave defaults */
+            }
+        });
+    }
+
+    // Expose for animation loop (pulse on drag)
+    globe._borderGroup = borderGroup;
+    globe._chinaBorderGroup = chinaBorderGroup;
+    globe._chinaProvGroup = chinaProvGroup;
+    globe._borderLoaded = function() { return loaded; };
+})();
+
+/* ── Location Marker (current position) ── */
+(function initLocationMarker() {
+    var markerGroup = new THREE.Group();
+    var MARKER_RADIUS = 2.03;
+    var userLat = null, userLng = null;
+
+    function placeMarker(lat, lng) {
+        userLat = lat;
+        userLng = lng;
+        var pos = latLngToVector3(lat, lng, MARKER_RADIUS);
+
+        // === Vertical beacon beam ===
+        var beamHeight = 0.35;
+        var beamGeo = new THREE.BufferGeometry();
+        var beamTop = latLngToVector3(lat, lng, MARKER_RADIUS + beamHeight);
+        beamGeo.setFromPoints([pos, beamTop]);
+        var beamMat = new THREE.LineBasicMaterial({
+            color: 0xff6d00,
+            transparent: true,
+            opacity: 0.7,
+            blending: THREE.AdditiveBlending,
+        });
+        var beam = new THREE.Line(beamGeo, beamMat);
+        markerGroup.add(beam);
+
+        // === Star marker at position ===
+        // Create a 4-pointed star shape using two triangles
+        var starShape = new THREE.Shape();
+        var outerR = 0.045, innerR = 0.015;
+        for (var i = 0; i < 8; i++) {
+            var angle = (i / 8) * Math.PI * 2 - Math.PI / 2;
+            var r = i % 2 === 0 ? outerR : innerR;
+            var sx = Math.cos(angle) * r;
+            var sy = Math.sin(angle) * r;
+            if (i === 0) starShape.moveTo(sx, sy);
+            else starShape.lineTo(sx, sy);
+        }
+        starShape.closePath();
+        var starGeo = new THREE.ShapeGeometry(starShape);
+        var starMat = new THREE.MeshBasicMaterial({
+            color: 0xff6d00,
+            transparent: true,
+            opacity: 1.0,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+        });
+        var star = new THREE.Mesh(starGeo, starMat);
+        star.position.copy(pos);
+        star.lookAt(new THREE.Vector3(0, 0, 0));
+        star.userData.type = 'location-star';
+        markerGroup.add(star);
+
+        // === Pulsing ring 1 ===
+        var ring1Geo = new THREE.RingGeometry(0.03, 0.05, 24);
+        var ring1Mat = new THREE.MeshBasicMaterial({
+            color: 0xff6d00,
+            transparent: true,
+            opacity: 0.8,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+        });
+        var ring1 = new THREE.Mesh(ring1Geo, ring1Mat);
+        ring1.position.copy(pos);
+        ring1.lookAt(new THREE.Vector3(0, 0, 0));
+        ring1.userData = { type: 'pulse-ring', phase: 0, speed: 1.2 };
+        markerGroup.add(ring1);
+
+        // === Pulsing ring 2 (offset phase) ===
+        var ring2Geo = new THREE.RingGeometry(0.03, 0.05, 24);
+        var ring2Mat = new THREE.MeshBasicMaterial({
+            color: 0xff6d00,
+            transparent: true,
+            opacity: 0.8,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+        });
+        var ring2 = new THREE.Mesh(ring2Geo, ring2Mat);
+        ring2.position.copy(pos);
+        ring2.lookAt(new THREE.Vector3(0, 0, 0));
+        ring2.userData = { type: 'pulse-ring', phase: Math.PI, speed: 1.2 };
+        markerGroup.add(ring2);
+
+        // === Glow point at base ===
+        var glowGeo = new THREE.SphereGeometry(0.03, 12, 12);
+        var glowMat = new THREE.MeshBasicMaterial({
+            color: 0xff6d00,
+            transparent: true,
+            opacity: 0.6,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+        });
+        var glow = new THREE.Mesh(glowGeo, glowMat);
+        glow.position.copy(pos);
+        markerGroup.add(glow);
+
+        globe.group.add(markerGroup);
+        console.log('[Globe] Location marker placed at (' + lat.toFixed(2) + ', ' + lng.toFixed(2) + ')');
+    }
+
+    // Try geolocation, fallback to Beijing
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            function(pos) {
+                placeMarker(pos.coords.latitude, pos.coords.longitude);
+            },
+            function(err) {
+                console.warn('[Globe] Geolocation denied, using fallback (Beijing):', err.message);
+                placeMarker(39.9, 116.4);
+            },
+            { timeout: 5000, maximumAge: 60000 }
+        );
+    } else {
+        placeMarker(39.9, 116.4);
+    }
+
+    // Expose for animation
+    globe._locationMarker = markerGroup;
+})();
 
 /* ── Satellite Orbits & Satellites ── */
 function createSatelliteOrbit(radiusX, radiusY, tiltX, tiltZ, color, speed, satColor) {
@@ -355,13 +700,40 @@ function createSatelliteOrbit(radiusX, radiusY, tiltX, tiltZ, color, speed, satC
     };
 }
 
-const satellites = [
-    createSatelliteOrbit(2.2, 1.8, 0.3, 0.1, 0x00e5ff, 0.003, 0x00e5ff),
-    createSatelliteOrbit(2.6, 2.0, -0.2, 0.4, 0xff6d00, 0.002, 0xff6d00),
-    createSatelliteOrbit(2.0, 1.9, 0.5, -0.3, 0x3d5afe, 0.004, 0x3d5afe),
-];
+const satellites = [];
 
-satellites.forEach(s => scene.add(s.group));
+/* ── 7 Satellites — randomly and uniformly distributed around the globe ── */
+var SATELLITE_COUNT = 7;
+
+/* Pick a distinct color for each satellite */
+var _satPalette = [0x00e5ff, 0x00b0ff, 0xff6d00, 0x3d5afe, 0x76ff03, 0xe040fb, 0xffab40];
+
+for (var _si = 0; _si < SATELLITE_COUNT; _si++) {
+    /* Uniformly distribute initial phase angle across full circle */
+    var phaseAngle = (_si / SATELLITE_COUNT) * Math.PI * 2;
+
+    /* Random orbital radius between 2.3 and 2.6 (Earth r=2.0 + altitude) */
+    var orbitR = 2.3 + Math.random() * 0.3;
+
+    /* Random tilt to give varied orbital planes */
+    var tiltX = (Math.random() - 0.5) * 0.8;   // ~±23°
+    var tiltZ = (Math.random() - 0.5) * 0.6;   // ~±17°
+
+    var orbitRadiusX = orbitR;
+    var orbitRadiusY = orbitR * (0.90 + Math.random() * 0.10); // slight eccentricity
+    var speed = 0.001 + Math.random() * 0.003;
+
+    var satColor = _satPalette[_si % _satPalette.length];
+    var sat = createSatelliteOrbit(
+        orbitRadiusX, orbitRadiusY, tiltX, tiltZ,
+        satColor, speed, satColor
+    );
+    sat.orbitRadius = orbitR;
+    sat.angle = phaseAngle; // uniform starting position
+    satellites.push(sat);
+}
+
+satellites.forEach(function(s) { scene.add(s.group); });
 
 /* ── Scan Line (sweeping across globe) ── */
 function createScanLine() {
@@ -482,7 +854,89 @@ function drawGrid(ctx, w, h) {
 
 
 /* ══════════════════════════════════════════════
-   Part C: Animation Loop
+   Part C: Globe Drag Interaction
+   ══════════════════════════════════════════════ */
+
+var globeDragging = false;
+var globeDragStart = { x: 0, y: 0 };
+var globeVelocity = { x: 0, y: 0 };
+var globeVelocityY = 0;  // Y-axis rotation velocity (left/right drag)
+var globeVelocityX = 0;  // X-axis rotation velocity (up/down drag)
+var globeUserInteracting = false;
+var globeInteractable = false;  // true when cardOpacity === 0
+
+function updateGlobeInteractable(opacity) {
+    globeInteractable = (opacity === 0);
+    var overlay = document.querySelector('.ui-overlay');
+    if (overlay) {
+        if (globeInteractable) {
+            overlay.classList.add('globe-only');
+            canvas.classList.add('globe-active');
+            canvas.style.cursor = 'grab';
+        } else {
+            overlay.classList.remove('globe-only');
+            canvas.classList.remove('globe-active');
+            canvas.style.cursor = '';
+        }
+    }
+}
+
+/* ── Pointer events on canvas for globe drag ── */
+canvas.addEventListener('pointerdown', function (e) {
+    if (!globeInteractable) return;
+    globeDragging = true;
+    globeDragStart.x = e.clientX;
+    globeDragStart.y = e.clientY;
+    globeVelocity.x = 0;
+    globeVelocity.y = 0;
+    globeVelocityY = 0;
+    globeVelocityX = 0;
+    globeUserInteracting = true;
+    canvas.style.cursor = 'grabbing';
+    e.preventDefault();
+}, { passive: false });
+
+window.addEventListener('pointermove', function (e) {
+    if (!globeDragging || !globeInteractable) return;
+    var dx = e.clientX - globeDragStart.x;
+    var dy = e.clientY - globeDragStart.y;
+    // Rotate globe: horizontal drag → Y axis, vertical drag → X axis
+    globe.group.rotation.y += dx * 0.005;
+    globe.group.rotation.x += dy * 0.003;
+    // Clamp X rotation to prevent flipping
+    globe.group.rotation.x = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, globe.group.rotation.x));
+    // Track velocity for inertia
+    globeVelocity.x = dx;
+    globeVelocity.y = dy;
+    globeVelocityY = dx * 0.005;
+    globeVelocityX = dy * 0.003;
+    globeDragStart.x = e.clientX;
+    globeDragStart.y = e.clientY;
+    // Atmosphere feedback: intensify glow during drag
+    if (globe.atmosphere) {
+        globe.atmosphere.material.uniforms.glowColor.value.setHex(0x00ffff);
+    }
+    e.preventDefault();
+}, { passive: false });
+
+window.addEventListener('pointerup', function () {
+    if (!globeDragging) return;
+    globeDragging = false;
+    canvas.style.cursor = 'grab';
+    // Apply inertia with decay
+    setTimeout(function () { globeUserInteracting = false; }, 200);
+    // Atmosphere glow smoothly returns to normal in animate loop
+});
+
+/* ── Touch interaction effects ── */
+canvas.addEventListener('touchstart', function (e) {
+    if (!globeInteractable) return;
+    // Haptic feedback on mobile
+    if (navigator.vibrate) navigator.vibrate(10);
+}, { passive: true });
+
+/* ══════════════════════════════════════════════
+   Part D: Animation Loop
    ══════════════════════════════════════════════ */
 
 const clock = new THREE.Clock();
@@ -494,14 +948,45 @@ function animate() {
     const delta = clock.getDelta();
     frameCount++;
 
-    // ── Globe rotation ──
-    globe.group.rotation.y += 0.001;
+    // ── Globe rotation (with inertia) ──
+    if (!globeDragging && !globeUserInteracting) {
+        // Apply inertia decay
+        globeVelocityY *= 0.96;
+        globeVelocityX *= 0.96;
+
+        if (Math.abs(globeVelocityY) > 0.00001 || Math.abs(globeVelocityX) > 0.00001) {
+            // Momentum from user drag
+            globe.group.rotation.y += globeVelocityY;
+            globe.group.rotation.x += globeVelocityX;
+            globe.group.rotation.x = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, globe.group.rotation.x));
+        } else {
+            // Auto-rotate when idle
+            globe.group.rotation.y += 0.001;
+            globeVelocityY = 0;
+            globeVelocityX = 0;
+        }
+    }
     globe.wireframeSphere.rotation.y -= 0.0005;
 
     // ── Update atmosphere viewVector ──
     globe.atmosphere.material.uniforms.viewVector.value = new THREE.Vector3().subVectors(
         camera.position, globe.group.position
     );
+
+    // ── Atmosphere glow feedback during drag ──
+    if (globe.atmosphere) {
+        if (globeDragging) {
+            var dragSpeed = Math.sqrt(globeVelocity.x * globeVelocity.x + globeVelocity.y * globeVelocity.y);
+            var targetGlow = Math.min(3.0, 1.0 + dragSpeed * 0.005);
+            globe.atmosphere.material.uniforms.glowIntensity.value +=
+                (targetGlow - globe.atmosphere.material.uniforms.glowIntensity.value) * 0.15;
+            globe.atmosphere.material.uniforms.glowColor.value.lerp(new THREE.Color(0x00ffff), 0.1);
+        } else {
+            globe.atmosphere.material.uniforms.glowIntensity.value +=
+                (1.0 - globe.atmosphere.material.uniforms.glowIntensity.value) * 0.05;
+            globe.atmosphere.material.uniforms.glowColor.value.lerp(new THREE.Color(0x00e5ff), 0.03);
+        }
+    }
 
     // ── Starfield slow drift ──
     starfield.rotation.y += 0.00008;
@@ -516,21 +1001,63 @@ function animate() {
         }
     });
 
+    // ── Location marker pulse animation ──
+    if (globe._locationMarker) {
+        globe._locationMarker.children.forEach(function(child) {
+            if (child.userData && child.userData.type === 'pulse-ring') {
+                var t = (time * child.userData.speed + child.userData.phase) % (Math.PI * 2);
+                var norm = t / (Math.PI * 2);  // 0→1
+                var scale = 1 + norm * 4;
+                child.scale.set(scale, scale, scale);
+                child.material.opacity = (1 - norm) * 0.8;
+            }
+        });
+    }
+
+    // ── Border opacity pulse on drag ──
+    if (globe._borderGroup && globe._borderLoaded && globe._borderLoaded()) {
+        var targetOpacity = globeDragging ? 0.25 : 0.12;
+        globe._borderGroup.children.forEach(function(line) {
+            if (line.material) {
+                line.material.opacity += (targetOpacity - line.material.opacity) * 0.08;
+            }
+        });
+    }
+    /* China national border: brighter, pulses with drag */
+    if (globe._chinaBorderGroup) {
+        var chinaTarget = globeDragging ? 0.75 : 0.55;
+        globe._chinaBorderGroup.children.forEach(function(line) {
+            if (line.material && line.material.opacity > 0.3) {
+                line.material.opacity += (chinaTarget - line.material.opacity) * 0.08;
+            } else if (line.material) {
+                var glowTarget = globeDragging ? 0.35 : 0.2;
+                line.material.opacity += (glowTarget - line.material.opacity) * 0.08;
+            }
+        });
+    }
+    /* China provincial borders: subtle pulse */
+    if (globe._chinaProvGroup && globe._chinaProvGroup.children.length > 0) {
+        var provTarget = globeDragging ? 0.30 : 0.18;
+        globe._chinaProvGroup.children.forEach(function(line) {
+            if (line.material) {
+                line.material.opacity += (provTarget - line.material.opacity) * 0.08;
+            }
+        });
+    }
+
     // ── Satellite orbits ──
-    satellites.forEach(sat => {
+    satellites.forEach(function(sat) {
         sat.angle += sat.speed;
 
-        const x = sat.radiusX * Math.cos(sat.angle);
-        const z = sat.radiusY * Math.sin(sat.angle);
+        var x = sat.radiusX * Math.cos(sat.angle);
+        var z = sat.radiusY * Math.sin(sat.angle);
 
-        // Apply tilt
-        const tiltedX = x * Math.cos(sat.tiltZ) - 0 * Math.sin(sat.tiltZ);
-        const tiltedY = x * Math.sin(sat.tiltZ) * Math.cos(sat.tiltX) + z * Math.sin(sat.tiltX);
-        const tiltedZ = -x * Math.sin(sat.tiltZ) * Math.sin(sat.tiltX) + z * Math.cos(sat.tiltX);
+        /* Apply tilt */
+        var tiltedX = x * Math.cos(sat.tiltZ);
+        var tiltedY = x * Math.sin(sat.tiltZ) * Math.cos(sat.tiltX) + z * Math.sin(sat.tiltX);
+        var tiltedZ = -x * Math.sin(sat.tiltZ) * Math.sin(sat.tiltX) + z * Math.cos(sat.tiltX);
 
         sat.satGroup.position.set(tiltedX, tiltedY, tiltedZ);
-
-        // Satellite always faces forward
         sat.satGroup.lookAt(0, 0, 0);
         sat.satGroup.rotateY(Math.PI);
     });
@@ -595,7 +1122,7 @@ window.addEventListener('resize', () => {
    ══════════════════════════════════════════════ */
 
 /* ── vCard Download ── */
-window.downloadVCard = function() {
+window.downloadVCard = function () {
     const vcard = `BEGIN:VCARD
 VERSION:3.0
 N:梁超;;;;
@@ -616,7 +1143,7 @@ END:VCARD`;
 };
 
 /* ── Share ── */
-window.shareCard = async function() {
+window.shareCard = async function () {
     if (navigator.share) {
         try {
             await navigator.share({
@@ -632,7 +1159,7 @@ window.shareCard = async function() {
 };
 
 /* ── Copy to Clipboard ── */
-window.copyToClipboard = async function(text) {
+window.copyToClipboard = async function (text) {
     try {
         await navigator.clipboard.writeText(text);
         showToast('toast-copied');
@@ -663,25 +1190,33 @@ function showToast(msg) {
 }
 
 /* ── Telemetry Data Update ── */
+var _telemetryIdx = 0;
 function updateTelemetry() {
-    const alt = 500 + Math.floor(Math.random() * 20);
-    const el = document.getElementById('satAlt');
-    if (el) el.textContent = alt + 'km';
+    _telemetryIdx = (_telemetryIdx + 1) % SATELLITE_COUNT;
+    var satId = 'SAT-' + String(_telemetryIdx + 1).padStart(2, '0');
+    var alt = 500 + Math.floor(Math.random() * 300);
+
+    var satEl = document.getElementById('satId');
+    var altEl = document.getElementById('satAlt');
+    if (satEl) satEl.textContent = satId;
+    if (altEl) altEl.textContent = alt + 'km';
 }
-setInterval(updateTelemetry, 5000);
+/* Show first satellite immediately, then cycle every 4 seconds */
+updateTelemetry();
+setInterval(updateTelemetry, 4000);
 
 /* ── WeChat Modal ── */
-window.openWeChatModal = function() {
+window.openWeChatModal = function () {
     const modal = document.getElementById('wechatModal');
     if (modal) modal.classList.add('show');
 };
 
-window.closeWeChatModal = function() {
+window.closeWeChatModal = function () {
     const modal = document.getElementById('wechatModal');
     if (modal) modal.classList.remove('show');
 };
 
-window.launchWeChat = function() {
+window.launchWeChat = function () {
     // Try to open WeChat app via deep link
     window.location.href = 'weixin://dl/add?qr=Life_Copy';
     // Fallback: close modal after a moment
@@ -693,15 +1228,15 @@ window.launchWeChat = function() {
     const wechatLink = document.getElementById('wechatLink');
     if (!wechatLink) return;
 
-    wechatLink.addEventListener('click', function(e) {
+    wechatLink.addEventListener('click', function (e) {
         e.preventDefault();
         const wechatId = 'Life_Copy';
 
         // 1. Copy WeChat ID to clipboard
         if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(wechatId).then(function() {
+            navigator.clipboard.writeText(wechatId).then(function () {
                 showToast('toast-wechat-copied');
-            }).catch(function() {
+            }).catch(function () {
                 fallbackCopy(wechatId);
             });
         } else {
@@ -709,7 +1244,7 @@ window.launchWeChat = function() {
         }
 
         // 2. Try to open WeChat app (after a short delay to allow copy)
-        setTimeout(function() {
+        setTimeout(function () {
             window.location.href = 'weixin://';
         }, 500);
     });
@@ -736,7 +1271,7 @@ window.launchWeChat = function() {
         if (toast && toastText) {
             toastText.textContent = (typeof window.__t === 'function' && window.__t(msg)) || msg;
             toast.classList.add('show');
-            setTimeout(function() {
+            setTimeout(function () {
                 toast.classList.remove('show');
             }, 2000);
         }
@@ -744,13 +1279,13 @@ window.launchWeChat = function() {
 })();
 
 /* ── Tennis Modal ── */
-window.openTennisModal = function() {
+window.openTennisModal = function () {
     var modal = document.getElementById('tennisModal');
     if (!modal) return;
     modal.classList.add('show');
 };
 
-window.closeTennisModal = function() {
+window.closeTennisModal = function () {
     var modal = document.getElementById('tennisModal');
     if (modal) modal.classList.remove('show');
 };
@@ -758,7 +1293,7 @@ window.closeTennisModal = function() {
 (function initTennisLink() {
     var tennisLink = document.getElementById('tennisLink');
     if (!tennisLink) return;
-    tennisLink.addEventListener('click', function(e) {
+    tennisLink.addEventListener('click', function (e) {
         e.preventDefault();
         hapticFeedback('tap');
         openTennisModal();
@@ -782,7 +1317,7 @@ window.closeTennisModal = function() {
     const METEOR_HEAD = ['#ffffff', '#fff8e1', '#ffe0b2'];  // hot white/yellow core
     const METEOR_BODY = ['#ffab40', '#ff6d00', '#ff3d00'];   // orange body
     const METEOR_TAIL = ['#ff1744', '#d50000', '#880e4f'];   // red/deep tail
-    const METEOR_ION  = ['#00e5ff', '#00b0ff', '#40c4ff'];   // blue ionization trail
+    const METEOR_ION = ['#00e5ff', '#00b0ff', '#40c4ff'];   // blue ionization trail
 
     let meteors = [];
     let sparkParticles = [];
@@ -1138,10 +1673,10 @@ function hapticFeedback(type) {
     // Disabled — user requested no tap feedback on mobile
     return;
     switch (type) {
-        case 'tap':     navigator.vibrate(8);   break;   // button / tap
-        case 'scroll':  navigator.vibrate(4);   break;   // scroll (very subtle)
+        case 'tap': navigator.vibrate(8); break;   // button / tap
+        case 'scroll': navigator.vibrate(4); break;   // scroll (very subtle)
         case 'success': navigator.vibrate([10, 50, 10]); break; // success pattern
-        default:        navigator.vibrate(6);   break;
+        default: navigator.vibrate(6); break;
     }
 }
 
@@ -1199,11 +1734,11 @@ function hapticFeedback(type) {
             'tennis-title': '挥拍青春 · 网球助教',
             'tennis-subtitle': '青春不等待，球场见真章',
             'tennis-label-location': '训练地点',
-            'tennis-location': '校网球场',
+            'tennis-location': '不固定场地',
             'tennis-label-levels': '课程分级',
-            'tennis-levels': '0基础 / 进阶 / 备战',
+            'tennis-levels': '0基础 / 提升稳定性 / 练球',
             'tennis-label-form': '授课形式',
-            'tennis-form': '1v1 / 1v多 / 小班课',
+            'tennis-form': '1v1 / 1v多',
             'tennis-label-coach': '教练',
             'tennis-coach': '梁超',
             'tennis-qr-label': '扫码添加教练微信',
@@ -1245,11 +1780,11 @@ function hapticFeedback(type) {
             'tennis-title': 'Swing Youth · Tennis Coach',
             'tennis-subtitle': 'Youth won\'t wait — see you on the court',
             'tennis-label-location': 'Location',
-            'tennis-location': 'Campus Tennis Court',
+            'tennis-location': 'Non-fixed venue',
             'tennis-label-levels': 'Levels',
-            'tennis-levels': 'Beginner / Advanced / Match Prep',
+            'tennis-levels': 'Beginner / Improving stability / Practicing',
             'tennis-label-form': 'Format',
-            'tennis-form': '1-on-1 / Group / Small Class',
+            'tennis-form': '1-on-1 / 1-on-n',
             'tennis-label-coach': 'Coach',
             'tennis-coach': 'LeongBro',
             'tennis-qr-label': 'Scan to add coach WeChat',
@@ -1328,7 +1863,7 @@ function hapticFeedback(type) {
     }
 
     function saveStorageZoom(v) {
-        try { localStorage.setItem('nfc-zoom', v); } catch (e) {}
+        try { localStorage.setItem('nfc-zoom', v); } catch (e) { }
     }
 
     function applyZoom(scale) {
@@ -1396,7 +1931,7 @@ function hapticFeedback(type) {
     var cardOpacity = 100;
     var isDraggingOpacity = false;
 
-    // Remove cardReveal animation after it finishes so JS inline opacity works
+    // Remove cardFadeIn animation after it finishes so JS inline opacity works
     // (CSS animation with forwards has higher cascade priority than inline styles)
     function removeCardAnimation() {
         var card = document.getElementById('mainCard');
@@ -1405,16 +1940,22 @@ function hapticFeedback(type) {
             card.style.opacity = '1';
         }
     }
-    setTimeout(removeCardAnimation, 1600); // 0.5s delay + 1s animation = 1.5s
+    setTimeout(removeCardAnimation, 1600); // 0.3s delay + 1.2s animation = 1.5s
 
     function applyCardOpacity(val) {
         cardOpacity = Math.max(0, Math.min(100, Math.round(val)));
+        // Expose to global scope for collapse toggle
+        window._cardOpacity = cardOpacity;
         var card = document.getElementById('mainCard');
         if (card) {
             card.style.animation = 'none';   // clear animation so inline opacity takes effect
             card.style.opacity = cardOpacity / 100;
             // When fully transparent, disable all pointer events so links/buttons are unreachable
             card.style.pointerEvents = cardOpacity === 0 ? 'none' : 'auto';
+        }
+        // Update globe interactable state for drag rotation
+        if (typeof updateGlobeInteractable === 'function') {
+            updateGlobeInteractable(cardOpacity);
         }
         var levelEl = document.getElementById('opacityLevel');
         if (levelEl) levelEl.textContent = cardOpacity + '%';
@@ -1540,3 +2081,109 @@ function hapticFeedback(type) {
         })();
     }
 })();
+
+/* ══════════════════════════════════════════════
+   Part G: 一键收放个人信息 (Collapse Toggle)
+   收起时卡片动态缩小并飞向按钮位置；
+   展开时从按钮位置反向放大淡入恢复完整面板。
+   ══════════════════════════════════════════════ */
+var collapseState = {
+    collapsed: false,
+    animating: false,
+    _timer: null,
+    _cachedOffset: null   // 缓存收起前的偏移量，供展开时使用
+};
+
+/**
+ * 计算 card-container 收缩到 collapse 按钮位置所需的 transform 值
+ * 返回 { dx, dy } —— 相对于卡片自身坐标系的平移量（px）
+ */
+function _calcCollapseOffset(cardEl, btnEl) {
+    var cardRect = cardEl.getBoundingClientRect();
+    var btnRect  = btnEl.getBoundingClientRect();
+    // 卡片中心 vs 按钮中心
+    var cx = cardRect.left + cardRect.width  / 2;
+    var cy = cardRect.top  + cardRect.height / 2;
+    var bx = btnRect.left + btnRect.width  / 2;
+    var by = btnRect.top  + btnRect.height / 2;
+    return { dx: bx - cx, dy: by - cy };
+}
+
+function toggleCollapsePanel() {
+    if (collapseState.animating) return;
+
+    var cardContainer = document.getElementById('cardContainer');
+    var toggleBtn = document.getElementById('fabCollapseToggle');
+    if (!cardContainer || !toggleBtn) return;
+
+    hapticFeedback('tap');
+
+    if (collapseState._timer) {
+        clearTimeout(collapseState._timer);
+        collapseState._timer = null;
+    }
+
+    collapseState.animating = true;
+
+    if (!collapseState.collapsed) {
+        /* ── 收起：计算偏移，transform 到按钮位置并缩为 0 ── */
+        collapseState.collapsed = true;
+        toggleBtn.classList.add('collapsed');
+
+        // 在卡片尚未缩放前缓存偏移量（展开时卡片已缩为0，无法正确计算）
+        var offset = _calcCollapseOffset(cardContainer, toggleBtn);
+        collapseState._cachedOffset = offset;
+
+        cardContainer.style.transformOrigin = 'center center';
+        cardContainer.style.transform =
+            'translate(' + offset.dx + 'px, ' + offset.dy + 'px) scale(0)';
+        cardContainer.style.opacity = '0';
+        cardContainer.style.pointerEvents = 'none';
+        cardContainer.classList.add('collapsed');
+
+        collapseState._timer = setTimeout(function () {
+            collapseState.animating = false;
+            collapseState._timer = null;
+            if (typeof updateGlobeInteractable === 'function') {
+                updateGlobeInteractable(0);
+            }
+        }, 600);
+
+    } else {
+        /* ── 展开：先用缓存偏移确保收起位置，再恢复完整面板 ── */
+        collapseState.collapsed = false;
+        toggleBtn.classList.remove('collapsed');
+        cardContainer.classList.remove('collapsed');
+
+        // 使用缓存的偏移量（此时卡片已缩为0，不能用 getBoundingClientRect 重算）
+        var offset = collapseState._cachedOffset || { dx: 0, dy: -200 };
+        cardContainer.style.transformOrigin = 'center center';
+        cardContainer.style.transform =
+            'translate(' + offset.dx + 'px, ' + offset.dy + 'px) scale(0)';
+        cardContainer.style.opacity = '0';
+        collapseState._cachedOffset = null;
+        // 强制 reflow，确保浏览器应用了上面的值
+        void cardContainer.offsetHeight;
+
+        // 恢复完整面板
+        var savedOpacity = (typeof window._cardOpacity !== 'undefined') ? window._cardOpacity : 100;
+        cardContainer.style.transform = 'scale(1) translate(0, 0)';
+        cardContainer.style.opacity = (savedOpacity > 0) ? (savedOpacity / 100) : '1';
+        if (savedOpacity > 0) {
+            var card = document.getElementById('mainCard');
+            if (card) {
+                card.style.opacity = savedOpacity / 100;
+                card.style.pointerEvents = 'auto';
+            }
+        }
+
+        collapseState._timer = setTimeout(function () {
+            collapseState.animating = false;
+            collapseState._timer = null;
+            cardContainer.style.pointerEvents = '';
+            if (typeof updateGlobeInteractable === 'function') {
+                updateGlobeInteractable(savedOpacity);
+            }
+        }, 600);
+    }
+}

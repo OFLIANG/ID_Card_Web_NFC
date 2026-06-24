@@ -3,7 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.3, maximum-scale=5.0, user-scalable=yes">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, minimum-scale=0.3, maximum-scale=5.0, user-scalable=yes">
     <title>LeongBro_IDCard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link
@@ -12,6 +13,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="style.css">
     <script src="three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
 </head>
 
 <body>
@@ -73,6 +75,10 @@
                     </div>
                     <div class="fab-opacity-level" id="opacityLevel">100%</div>
                 </div>
+                <div class="fab-zoom-divider"></div>
+                <button class="fab-zoom-item fab-collapse-btn" id="fabCollapseToggle" onclick="toggleCollapsePanel()" title="收起/展开个人信息">
+                    <i class="fas fa-chevron-up" id="collapseIcon"></i>
+                </button>
             </div>
             <button class="fab-zoom-main" id="fabMain" onclick="toggleFabPalette()">
                 <i class="fas fa-arrows-up-down-left-right" id="fabIcon"></i>
@@ -80,7 +86,7 @@
         </div>
 
         <!-- 主内容卡片 -->
-        <div class="card-container">
+        <div class="card-container" id="cardContainer">
             <div class="glass-card" id="mainCard">
 
                 <!-- 头像区 -->
@@ -157,9 +163,11 @@
                         </a>
                         <a href="javascript:void(0)" class="social-item" id="tennisLink">
                             <svg class="tennis-svg-icon" viewBox="0 0 24 24" width="22" height="22">
-                                <circle cx="12" cy="12" r="10.5" fill="none" stroke="currentColor" stroke-width="1.2"/>
-                                <path d="M12 1.5C12 1.5 7.5 7.5 7.5 12s4.5 10.5 4.5 10.5" fill="none" stroke="currentColor" stroke-width="1.1"/>
-                                <path d="M12 1.5C12 1.5 16.5 7.5 16.5 12s-4.5 10.5-4.5 10.5" fill="none" stroke="currentColor" stroke-width="1.1"/>
+                                <circle cx="12" cy="12" r="10.5" fill="none" stroke="currentColor" stroke-width="1.2" />
+                                <path d="M12 1.5C12 1.5 7.5 7.5 7.5 12s4.5 10.5 4.5 10.5" fill="none"
+                                    stroke="currentColor" stroke-width="1.1" />
+                                <path d="M12 1.5C12 1.5 16.5 7.5 16.5 12s-4.5 10.5-4.5 10.5" fill="none"
+                                    stroke="currentColor" stroke-width="1.1" />
                             </svg>
                             <span data-i18n="social-tennis">网球助教</span>
                         </a>
@@ -234,9 +242,11 @@
                 <div class="tennis-modal-header">
                     <div class="tennis-header-icon">
                         <svg class="tennis-svg-icon" viewBox="0 0 24 24" width="32" height="32">
-                            <circle cx="12" cy="12" r="10.5" fill="none" stroke="currentColor" stroke-width="1.2"/>
-                            <path d="M12 1.5C12 1.5 7.5 7.5 7.5 12s4.5 10.5 4.5 10.5" fill="none" stroke="currentColor" stroke-width="1.1"/>
-                            <path d="M12 1.5C12 1.5 16.5 7.5 16.5 12s-4.5 10.5-4.5 10.5" fill="none" stroke="currentColor" stroke-width="1.1"/>
+                            <circle cx="12" cy="12" r="10.5" fill="none" stroke="currentColor" stroke-width="1.2" />
+                            <path d="M12 1.5C12 1.5 7.5 7.5 7.5 12s4.5 10.5 4.5 10.5" fill="none" stroke="currentColor"
+                                stroke-width="1.1" />
+                            <path d="M12 1.5C12 1.5 16.5 7.5 16.5 12s-4.5 10.5-4.5 10.5" fill="none"
+                                stroke="currentColor" stroke-width="1.1" />
                         </svg>
                     </div>
                     <h3 data-i18n="tennis-title">挥拍青春 · 网球助教</h3>
@@ -244,7 +254,8 @@
                 </div>
 
                 <div class="tennis-poster-wrap">
-                    <img src="img/bcb4822c9c9fb458ed1369ceb96222f3.png" alt="网球助教海报" class="tennis-poster-img" id="tennisPosterImg">
+                    <img src="img/bcb4822c9c9fb458ed1369ceb96222f3.png" alt="网球助教海报" class="tennis-poster-img"
+                        id="tennisPosterImg">
                 </div>
 
                 <div class="tennis-info-grid">
@@ -278,10 +289,12 @@
                 </div>
 
                 <div class="tennis-modal-actions">
-                    <button class="tennis-btn-contact" onclick="window.location.href='tel:13153152494'; hapticFeedback('tap');">
+                    <button class="tennis-btn-contact"
+                        onclick="window.location.href='tel:13153152494'; hapticFeedback('tap');">
                         <i class="fas fa-phone"></i> <span data-i18n="tennis-btn-call">电话咨询</span>
                     </button>
-                    <button class="tennis-btn-wechat" onclick="launchWeChat(); closeTennisModal(); hapticFeedback('tap');">
+                    <button class="tennis-btn-wechat"
+                        onclick="launchWeChat(); closeTennisModal(); hapticFeedback('tap');">
                         <i class="fab fa-weixin"></i> <span data-i18n="tennis-btn-wechat">微信咨询</span>
                     </button>
                 </div>
