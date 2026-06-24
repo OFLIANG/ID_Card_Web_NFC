@@ -929,11 +929,47 @@ window.addEventListener('pointerup', function () {
 });
 
 /* ── Touch interaction effects ── */
+/* When globe is interactable, block ALL touch defaults on canvas to prevent
+   page scrolling / bouncing while user drags the globe on mobile */
 canvas.addEventListener('touchstart', function (e) {
     if (!globeInteractable) return;
     // Haptic feedback on mobile
     if (navigator.vibrate) navigator.vibrate(10);
-}, { passive: true });
+    // Block page scroll: only globe should respond to touch
+    e.preventDefault();
+    // 双重阻断：CSS class + inline style，确保页面完全不跟随滚动
+    document.body.classList.add('globe-touch-active');
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+    document.body.style.height = '100%';
+}, { passive: false });
+
+canvas.addEventListener('touchmove', function (e) {
+    if (!globeInteractable) return;
+    // Prevent page scroll entirely during globe drag
+    e.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener('touchend', function () {
+    // 立即移除全局阻断，不使用延迟
+    document.body.classList.remove('globe-touch-active');
+    document.body.style.overflow = '';
+    document.body.style.touchAction = '';
+    document.body.style.position = '';
+    document.body.style.width = '';
+    document.body.style.height = '';
+});
+
+canvas.addEventListener('touchcancel', function () {
+    document.body.classList.remove('globe-touch-active');
+    document.body.style.overflow = '';
+    document.body.style.touchAction = '';
+    document.body.style.position = '';
+    document.body.style.width = '';
+    document.body.style.height = '';
+});
 
 /* ══════════════════════════════════════════════
    Part D: Animation Loop
@@ -1643,12 +1679,28 @@ window.closeTennisModal = function () {
 
     /* ── Mobile: Touch events ── */
     if (isMobile) {
+        var _touchFrameCount = 0;
         document.addEventListener('touchstart', function (e) {
             const touch = e.touches[0];
-            // No tap burst or haptic — only swipe trail
+            // Spawn a small burst on tap
+            if (touch) {
+                const colorPool = ['#ffffff', '#fff8e1', '#e0e0e0'];
+                const color = colorPool[Math.floor(Math.random() * colorPool.length)];
+                sparkParticles.push(new Spark(
+                    touch.clientX, touch.clientY,
+                    (Math.random() - 0.5) * 2,
+                    (Math.random() - 0.5) * 2,
+                    color,
+                    1.5 + Math.random(),
+                    12 + Math.floor(Math.random() * 10)
+                ));
+            }
         }, { passive: true });
 
         document.addEventListener('touchmove', function (e) {
+            _touchFrameCount++;
+            // Only spawn particles every 3rd frame to reduce jank
+            if (_touchFrameCount % 3 !== 0) return;
             const touch = e.touches[0];
             const colorPool = ['#ffffff', '#fff8e1', '#e0e0e0', '#b0bec5'];
             const color = colorPool[Math.floor(Math.random() * colorPool.length)];
@@ -1659,7 +1711,7 @@ window.closeTennisModal = function () {
                 (Math.random() - 0.5) * 1.2,
                 color,
                 1 + Math.random(),
-                15 + Math.floor(Math.random() * 12)
+                12 + Math.floor(Math.random() * 10)
             ));
         }, { passive: true });
     }
@@ -1872,8 +1924,12 @@ function hapticFeedback(type) {
         // Scale ONLY the card content, not the entire overlay
         // This keeps zoom controls, FAB button, scrollbar pinned to screen edges
         if (cardContainer) {
+            // 缩放时禁用过渡，确保实时跟手
+            cardContainer.classList.add('no-transition');
             cardContainer.style.transformOrigin = 'center top';
             cardContainer.style.transform = 'scale(' + zoomLevel + ')';
+            void cardContainer.offsetHeight;
+            cardContainer.classList.remove('no-transition');
         }
 
         // Scale the 3D globe by adjusting the camera zoom factor
@@ -1947,12 +2003,37 @@ function hapticFeedback(type) {
         // Expose to global scope for collapse toggle
         window._cardOpacity = cardOpacity;
         var card = document.getElementById('mainCard');
+        var container = document.getElementById('cardContainer');
+
+        // 临时禁用过渡动画，确保拖拽滑块时透明度实时同步更新
+        if (container) container.classList.add('no-transition');
+
         if (card) {
             card.style.animation = 'none';   // clear animation so inline opacity takes effect
             card.style.opacity = cardOpacity / 100;
             // When fully transparent, disable all pointer events so links/buttons are unreachable
             card.style.pointerEvents = cardOpacity === 0 ? 'none' : 'auto';
         }
+        // collapseState is defined later (Part G); guard with typeof check
+        var isCollapsed = (typeof collapseState !== 'undefined' && collapseState.collapsed);
+        if (container && !isCollapsed) {
+            container.style.visibility = cardOpacity === 0 ? 'hidden' : '';
+            // 完全屏蔽交互：opacity=0 时添加 card-blocked 类，彻底屏蔽内部所有可点击元素
+            if (cardOpacity === 0) {
+                container.classList.add('card-blocked');
+                container.style.pointerEvents = 'none';
+            } else {
+                container.classList.remove('card-blocked');
+                container.style.pointerEvents = '';
+            }
+        }
+
+        // 强制 reflow 使样式立即生效后，恢复过渡能力
+        if (container) {
+            void container.offsetHeight;
+            container.classList.remove('no-transition');
+        }
+
         // Update globe interactable state for drag rotation
         if (typeof updateGlobeInteractable === 'function') {
             updateGlobeInteractable(cardOpacity);
@@ -1978,32 +2059,46 @@ function hapticFeedback(type) {
         applyCardOpacity(ratio * 100);
     }
 
-    document.addEventListener('mousedown', function (e) {
-        if (e.target.id === 'opacityThumb' || e.target.id === 'opacityTrack') {
+    /* Opacity thumb uses pointer events (unified mouse+touch) to avoid
+       document-level touchstart/touchmove that would block scrolling */
+    var opacityThumb = document.getElementById('opacityThumb');
+    var opacityTrack = document.getElementById('opacityTrack');
+    var _opacityTarget = opacityThumb || opacityTrack;
+
+    if (_opacityTarget) {
+        _opacityTarget.addEventListener('pointerdown', function (e) {
             isDraggingOpacity = true;
             updateOpacityFromPointer(e.clientX);
             e.preventDefault();
-        }
-    });
-    document.addEventListener('mousemove', function (e) {
-        if (isDraggingOpacity) updateOpacityFromPointer(e.clientX);
-    });
-    document.addEventListener('mouseup', function () { isDraggingOpacity = false; });
-
-    document.addEventListener('touchstart', function (e) {
-        if (e.target.id === 'opacityThumb' || e.target.id === 'opacityTrack') {
+            e.stopPropagation();
+        });
+        _opacityTarget.addEventListener('touchstart', function (e) {
             isDraggingOpacity = true;
             updateOpacityFromPointer(e.touches[0].clientX);
-            e.preventDefault();
-        }
-    }, { passive: false });
-    document.addEventListener('touchmove', function (e) {
+        }, { passive: true });
+    }
+
+    document.addEventListener('pointermove', function (e) {
         if (isDraggingOpacity) {
-            updateOpacityFromPointer(e.touches[0].clientX);
+            updateOpacityFromPointer(e.clientX);
             e.preventDefault();
         }
     }, { passive: false });
+
+    document.addEventListener('pointerup', function () { isDraggingOpacity = false; });
+    document.addEventListener('pointercancel', function () { isDraggingOpacity = false; });
+
+    // Touchmove only on the track element to avoid blocking page scroll
+    if (opacityTrack) {
+        opacityTrack.addEventListener('touchmove', function (e) {
+            if (isDraggingOpacity) {
+                updateOpacityFromPointer(e.touches[0].clientX);
+                e.preventDefault();
+            }
+        }, { passive: false });
+    }
     document.addEventListener('touchend', function () { isDraggingOpacity = false; });
+    document.addEventListener('touchcancel', function () { isDraggingOpacity = false; });
 
     window.toggleOpacityPalette = function () {
         var opPalette = document.getElementById('fabOpacityPalette');
@@ -2060,26 +2155,36 @@ function hapticFeedback(type) {
         }
     }, { passive: false });
 
-    // Restore saved zoom on load
-    var saved = getStorageZoom();
-    if (saved !== 1.0) {
-        applyZoom(saved);
-    } else {
-        // Auto-adapt to screen size (requirement #1)
-        (function autoAdaptScale() {
+    // Auto-adapt scale to screen size (always run on load)
+    (function autoAdaptScale() {
+        var w = window.innerWidth;
+        var h = window.innerHeight;
+        var minDim = Math.min(w, h);
+        var targetScale = 1.0;
+        if (minDim <= 320) targetScale = 0.72;
+        else if (minDim <= 350) targetScale = 0.80;
+        else if (minDim <= 375) targetScale = 0.88;
+        else if (minDim <= 390) targetScale = 0.94;
+        // 391+ stays at 1.0
+        applyZoom(targetScale);
+    })();
+
+    // Re-adapt scale on viewport resize (e.g., orientation change)
+    var _resizeAdaptTimer = null;
+    window.addEventListener('resize', function () {
+        clearTimeout(_resizeAdaptTimer);
+        _resizeAdaptTimer = setTimeout(function () {
             var w = window.innerWidth;
             var h = window.innerHeight;
             var minDim = Math.min(w, h);
             var targetScale = 1.0;
-            if (minDim <= 320) targetScale = 0.78;
-            else if (minDim <= 360) targetScale = 0.88;
-            else if (minDim <= 390) targetScale = 0.95;
-            // 391+ stays at 1.0
-            if (targetScale !== 1.0) {
-                applyZoom(targetScale);
-            }
-        })();
-    }
+            if (minDim <= 320) targetScale = 0.72;
+            else if (minDim <= 350) targetScale = 0.80;
+            else if (minDim <= 375) targetScale = 0.88;
+            else if (minDim <= 390) targetScale = 0.94;
+            applyZoom(targetScale);
+        }, 250);
+    });
 })();
 
 /* ══════════════════════════════════════════════
@@ -2109,8 +2214,67 @@ function _calcCollapseOffset(cardEl, btnEl) {
     return { dx: bx - cx, dy: by - cy };
 }
 
+/**
+ * 动画完成回调的通用处理：清除 animating 标记、移除 timer、更新 globe 可交互状态
+ */
+function _finishCollapseAnim(opts) {
+    collapseState.animating = false;
+    if (collapseState._timer) { clearTimeout(collapseState._timer); collapseState._timer = null; }
+    if (collapseState._transitionHandler) {
+        var c = document.getElementById('cardContainer');
+        if (c) c.removeEventListener('transitionend', collapseState._transitionHandler);
+        collapseState._transitionHandler = null;
+    }
+    if (opts && typeof opts.globeOpacity !== 'undefined') {
+        if (typeof updateGlobeInteractable === 'function') updateGlobeInteractable(opts.globeOpacity);
+    }
+    if (opts && typeof opts.restoreBlocked !== 'undefined') {
+        var ctn = document.getElementById('cardContainer');
+        if (ctn) {
+            if (opts.restoreBlocked) {
+                ctn.classList.add('card-blocked');
+                ctn.style.pointerEvents = 'none';
+            } else {
+                ctn.classList.remove('card-blocked');
+                ctn.style.pointerEvents = '';
+            }
+        }
+    }
+}
+
+/**
+ * 绑定 transitionend 监听器 + 2 秒安全回退
+ * primaryProp: 主要过渡属性（'transform' 或 'opacity'）
+ */
+function _bindCollapseTransitionEnd(cardContainer, onDone, primaryProp) {
+    var done = false;
+    function handler(e) {
+        if (done) return;
+        // 仅响应目标属性的 transitionend
+        if (primaryProp && e.propertyName && e.propertyName !== primaryProp) return;
+        done = true;
+        onDone();
+    }
+    collapseState._transitionHandler = handler;
+    cardContainer.addEventListener('transitionend', handler, { once: false });
+    // 安全回退：2 秒后无论 transitionend 是否触发都强制完成
+    collapseState._timer = setTimeout(function () {
+        if (!done) {
+            done = true;
+            onDone();
+        }
+    }, 2000);
+}
+
 function toggleCollapsePanel() {
-    if (collapseState.animating) return;
+    // Safety: 如果 animating 卡住超过 2.5 秒，强制重置防止界面锁死
+    if (collapseState.animating) {
+        if (collapseState._animStart && (Date.now() - collapseState._animStart > 2500)) {
+            _finishCollapseAnim({ globeOpacity: 100 });
+        } else {
+            return;
+        }
+    }
 
     var cardContainer = document.getElementById('cardContainer');
     var toggleBtn = document.getElementById('fabCollapseToggle');
@@ -2118,42 +2282,60 @@ function toggleCollapsePanel() {
 
     hapticFeedback('tap');
 
-    if (collapseState._timer) {
-        clearTimeout(collapseState._timer);
-        collapseState._timer = null;
+    // 清除之前的 timer 和 transitionend 监听
+    if (collapseState._timer) { clearTimeout(collapseState._timer); collapseState._timer = null; }
+    if (collapseState._transitionHandler) {
+        cardContainer.removeEventListener('transitionend', collapseState._transitionHandler);
+        collapseState._transitionHandler = null;
     }
 
     collapseState.animating = true;
+    collapseState._animStart = Date.now();
 
     if (!collapseState.collapsed) {
         /* ── 收起：计算偏移，transform 到按钮位置并缩为 0 ── */
         collapseState.collapsed = true;
         toggleBtn.classList.add('collapsed');
 
+        // 确保收起动画使用 CSS transition（移除 no-transition）
+        cardContainer.classList.remove('no-transition');
+
         // 在卡片尚未缩放前缓存偏移量（展开时卡片已缩为0，无法正确计算）
         var offset = _calcCollapseOffset(cardContainer, toggleBtn);
         collapseState._cachedOffset = offset;
+
+        // 立即屏蔽所有交互 + 添加 card-blocked 类，防止动画期间误触
+        cardContainer.classList.add('card-blocked');
+        cardContainer.style.pointerEvents = 'none';
+        var card = document.getElementById('mainCard');
+        if (card) {
+            card.style.pointerEvents = 'none';
+            card.style.opacity = '0';
+        }
 
         cardContainer.style.transformOrigin = 'center center';
         cardContainer.style.transform =
             'translate(' + offset.dx + 'px, ' + offset.dy + 'px) scale(0)';
         cardContainer.style.opacity = '0';
-        cardContainer.style.pointerEvents = 'none';
+        cardContainer.style.visibility = 'hidden';
         cardContainer.classList.add('collapsed');
 
-        collapseState._timer = setTimeout(function () {
-            collapseState.animating = false;
-            collapseState._timer = null;
-            if (typeof updateGlobeInteractable === 'function') {
-                updateGlobeInteractable(0);
-            }
-        }, 600);
+        // 使用 transitionend 监听动画完成（优先于 setTimeout）
+        _bindCollapseTransitionEnd(cardContainer, function () {
+            _finishCollapseAnim({ globeOpacity: 0 });
+        }, 'transform');
 
     } else {
         /* ── 展开：先用缓存偏移确保收起位置，再恢复完整面板 ── */
         collapseState.collapsed = false;
         toggleBtn.classList.remove('collapsed');
         cardContainer.classList.remove('collapsed');
+
+        // 确保展开动画使用 CSS transition
+        cardContainer.classList.remove('no-transition');
+
+        // 先恢复可见性，为动画做准备
+        cardContainer.style.visibility = 'visible';
 
         // 使用缓存的偏移量（此时卡片已缩为0，不能用 getBoundingClientRect 重算）
         var offset = collapseState._cachedOffset || { dx: 0, dy: -200 };
@@ -2162,13 +2344,15 @@ function toggleCollapsePanel() {
             'translate(' + offset.dx + 'px, ' + offset.dy + 'px) scale(0)';
         cardContainer.style.opacity = '0';
         collapseState._cachedOffset = null;
-        // 强制 reflow，确保浏览器应用了上面的值
+        // 强制 reflow，确保浏览器应用了上面的值（从 scale(0) 位置开始动画）
         void cardContainer.offsetHeight;
 
-        // 恢复完整面板
+        // 恢复完整面板（CSS transition 会自动从 scale(0) 动画到 scale(1)）
         var savedOpacity = (typeof window._cardOpacity !== 'undefined') ? window._cardOpacity : 100;
         cardContainer.style.transform = 'scale(1) translate(0, 0)';
-        cardContainer.style.opacity = (savedOpacity > 0) ? (savedOpacity / 100) : '1';
+        cardContainer.style.opacity = (savedOpacity > 0) ? (savedOpacity / 100) : '0';
+        cardContainer.style.visibility = savedOpacity > 0 ? '' : 'hidden';
+
         if (savedOpacity > 0) {
             var card = document.getElementById('mainCard');
             if (card) {
@@ -2177,13 +2361,12 @@ function toggleCollapsePanel() {
             }
         }
 
-        collapseState._timer = setTimeout(function () {
-            collapseState.animating = false;
-            collapseState._timer = null;
-            cardContainer.style.pointerEvents = '';
-            if (typeof updateGlobeInteractable === 'function') {
-                updateGlobeInteractable(savedOpacity);
-            }
-        }, 600);
+        // 使用 transitionend 监听动画完成（优先于 setTimeout）
+        _bindCollapseTransitionEnd(cardContainer, function () {
+            _finishCollapseAnim({
+                globeOpacity: savedOpacity,
+                restoreBlocked: savedOpacity === 0
+            });
+        }, 'transform');
     }
 }

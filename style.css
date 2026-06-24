@@ -67,6 +67,31 @@ body {
 /* Globe drag cursor */
 #globe-canvas.globe-active {
     cursor: grab;
+    touch-action: none !important;
+}
+
+/* When touching globe on mobile, block ALL other page interactions */
+body.globe-touch-active {
+    overflow: hidden !important;
+    touch-action: none !important;
+    -webkit-overflow-scrolling: none !important;
+}
+
+body.globe-touch-active,
+body.globe-touch-active * {
+    overflow: hidden !important;
+    touch-action: none !important;
+    -webkit-overflow-scrolling: none !important;
+}
+
+body.globe-touch-active .ui-overlay {
+    pointer-events: none !important;
+    touch-action: none !important;
+}
+
+body.globe-touch-active .fab-zoom,
+body.globe-touch-active .telemetry-bar {
+    pointer-events: auto !important;
 }
 
 #overlay-canvas {
@@ -208,20 +233,37 @@ body {
     min-height: 0;
     /* 当内容高度不足时，让卡片在可视区域内居中 */
     margin: auto 0;
+    /* 收起/展开动画平滑过渡 */
+    transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.35s ease;
+}
+
+/* 临时禁用过渡（缩放/透明度拖拽时使用） */
+.card-container.no-transition,
+.card-container.no-transition * {
+    transition: none !important;
+}
+
+/* 完全屏蔽卡片内所有交互（opacity=0 或收起时） */
+.card-container.card-blocked,
+.card-container.card-blocked * {
+    pointer-events: none !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
 }
 
 .glass-card {
     width: 100%;
-    background: var(--surface);
-    border: 1px solid var(--surface-border);
+    background-color: rgba(6, 12, 30, 0.20);
+    border: 1px solid rgba(0, 229, 255, 0.25);
     border-radius: 20px;
     padding: 32px 24px;
-    backdrop-filter: blur(24px) saturate(1.5);
-    -webkit-backdrop-filter: blur(24px) saturate(1.5);
     box-shadow:
-        0 0 40px rgba(0, 229, 255, 0.04),
-        0 8px 32px rgba(0, 0, 0, 0.35),
-        inset 0 0 60px rgba(0, 229, 255, 0.02);
+        0 0 60px rgba(0, 229, 255, 0.10),
+        0 8px 32px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.10),
+        inset 0 0 80px rgba(0, 229, 255, 0.05),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.06);
     position: relative;
     overflow: visible;
     flex-shrink: 0;
@@ -230,14 +272,24 @@ body {
     touch-action: pan-y;
 }
 
+/* 浏览器支持 backdrop-filter 时增强毛玻璃 */
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    .glass-card {
+        -webkit-backdrop-filter: blur(40px) saturate(2.0) brightness(1.15);
+        backdrop-filter: blur(40px) saturate(2.0) brightness(1.15);
+        background-color: rgba(6, 12, 30, 0.15);
+    }
+}
+
 .glass-card::before {
     content: '';
     position: absolute;
     top: -1px;
-    left: 20%;
-    right: 20%;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--primary), transparent);
+    left: 6%;
+    right: 6%;
+    height: 1.5px;
+    background: linear-gradient(90deg, transparent, rgba(0, 229, 255, 0.8), var(--primary), rgba(0, 229, 255, 0.8), transparent);
+    z-index: 2;
 }
 
 .glass-card::after {
@@ -247,10 +299,25 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background: linear-gradient(135deg,
-            rgba(0, 229, 255, 0.03) 0%,
-            transparent 50%,
-            rgba(61, 90, 254, 0.02) 100%);
+    border-radius: 20px;
+    background:
+        /* 顶部高光反光带 —— 毛玻璃最关键的视觉线索 */
+        linear-gradient(180deg,
+            rgba(255, 255, 255, 0.12) 0%,
+            rgba(255, 255, 255, 0.06) 4%,
+            rgba(255, 255, 255, 0.02) 12%,
+            transparent 22%),
+        /* 左上角椭圆光斑 —— 光源方向 */
+        radial-gradient(ellipse at 15% 5%, rgba(0, 229, 255, 0.18) 0%, transparent 40%),
+        /* 中部散射 —— 模拟磨砂漫射 */
+        radial-gradient(ellipse at 50% 30%, rgba(255, 255, 255, 0.04) 0%, transparent 50%),
+        /* 右下角微光 */
+        radial-gradient(ellipse at 90% 95%, rgba(61, 90, 254, 0.10) 0%, transparent 30%),
+        /* 对角磨砂 */
+        linear-gradient(135deg,
+            rgba(0, 229, 255, 0.08) 0%,
+            transparent 35%,
+            rgba(61, 90, 254, 0.05) 100%);
     pointer-events: none;
 }
 
@@ -679,7 +746,7 @@ body {
 /* ═══════ 12. Toast ═══════ */
 .toast {
     position: fixed;
-    bottom: 100px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 100px);
     left: 50%;
     transform: translateX(-50%) translateY(20px);
     background: rgba(0, 229, 255, 0.15);
@@ -712,6 +779,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: env(safe-area-inset-top, 16px) env(safe-area-inset-right, 16px) env(safe-area-inset-bottom, 16px) env(safe-area-inset-left, 16px);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s ease;
@@ -892,6 +960,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: env(safe-area-inset-top, 16px) env(safe-area-inset-right, 12px) env(safe-area-inset-bottom, 16px) env(safe-area-inset-left, 12px);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s ease;
@@ -1159,6 +1228,106 @@ body {
 }
 
 /* ═══════ 13. Animations ═══════ */
+
+/* ── Mobile Modal Overrides ── */
+@media (max-width: 420px) {
+    /* WeChat Modal: near-fullscreen on mobile */
+    .wechat-modal-content {
+        width: calc(100vw - 32px);
+        max-width: 360px;
+        padding: 22px 18px;
+        border-radius: 16px;
+    }
+
+    .wechat-qr-code {
+        width: 150px;
+        height: 150px;
+    }
+
+    .wechat-id-display {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 6px;
+        padding: 6px 12px;
+    }
+
+    .wechat-id-value { font-size: 13px; }
+
+    .wechat-modal-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    /* Tennis Modal: near-fullscreen on mobile */
+    .tennis-modal-content {
+        width: calc(100vw - 24px);
+        max-width: 400px;
+        max-height: calc(100vh - 48px);
+        padding: 20px 16px 16px;
+        border-radius: 16px;
+    }
+
+    .tennis-modal-header { margin-bottom: 12px; }
+    .tennis-header-icon { width: 40px; height: 40px; }
+    .tennis-modal-header h3 { font-size: 15px; }
+    .tennis-subtitle { font-size: 11px; }
+
+    .tennis-poster-wrap { margin-bottom: 12px; border-radius: 12px; }
+
+    .tennis-info-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        margin-bottom: 12px;
+    }
+    .tennis-info-card { padding: 8px; border-radius: 8px; }
+    .tennis-info-icon { width: 28px; height: 28px; font-size: 12px; }
+    .tennis-info-label { font-size: 8px; }
+    .tennis-info-value { font-size: 11px; }
+
+    .tennis-qr-section { margin-bottom: 12px; }
+    .tennis-qr-code { width: 120px; height: 120px; }
+
+    .tennis-modal-actions {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+    .tennis-btn-contact,
+    .tennis-btn-wechat {
+        padding: 10px;
+        font-size: 12px;
+    }
+    .tennis-btn-close { padding: 8px; font-size: 12px; }
+}
+
+/* ── Mobile FAB Overrides ── */
+@media (max-width: 420px) {
+    .fab-zoom-palette {
+        gap: 4px;
+    }
+
+    .fab-opacity-palette {
+        width: 160px;
+        margin-left: -120px;
+    }
+
+    .fab-zoom-item {
+        width: 36px;
+        height: 36px;
+        font-size: 12px;
+    }
+
+    .fab-zoom-level {
+        font-size: 8px;
+        min-width: 36px;
+    }
+
+    .fab-collapse-btn {
+        width: 36px;
+        height: 36px;
+    }
+}
+
 @keyframes fadeSlideDown {
     from {
         opacity: 0;
@@ -1191,52 +1360,118 @@ body {
 }
 
 /* ═══════ 15. Mobile Adjustments ═══════ */
-@media (max-width: 380px) {
-    .glass-card {
-        padding: 24px 16px;
-    }
 
-    .name {
-        font-size: 24px;
-        letter-spacing: 4px;
-    }
-
-    .social-grid {
+/* ── Small phones (iPhone SE, 320px) ── */
+@media (max-width: 340px) {
+    .telemetry-bar {
         gap: 6px;
+        padding: 6px 12px;
+        font-size: 8px;
+        margin-top: 8px;
+    }
+    .telemetry-item { gap: 1px; }
+    .telemetry-label { font-size: 6px; }
+    .telemetry-value { font-size: 8px; }
+    .lang-toggle { font-size: 7px; padding: 3px 6px; }
+
+    .glass-card {
+        padding: 20px 14px;
+        border-radius: 16px;
     }
 
-    .social-item {
-        padding: 12px 6px;
-    }
+    .avatar-ring { width: 60px; height: 60px; }
+    .avatar-text { font-size: 18px; }
 
-    .social-item i {
-        font-size: 18px;
-    }
+    .name-cn { font-size: 22px; letter-spacing: 4px; }
+    .name-en { font-size: 11px; letter-spacing: 2px; }
 
-    .btn-action {
-        padding: 11px 10px;
-        font-size: 12px;
-    }
+    .subtitle-line { gap: 8px; margin-bottom: 16px; }
+    .sub-dash { width: 16px; }
+    .sub-text { font-size: 7px; }
+
+    .section-header { font-size: 9px; }
+    .section-block { margin-bottom: 14px; }
+
+    .contact-item { padding: 10px 10px; gap: 8px; }
+    .item-icon { width: 30px; height: 30px; border-radius: 8px; font-size: 12px; }
+    .item-label { font-size: 8px; }
+    .item-value { font-size: 12px; }
+
+    .social-grid { gap: 4px; }
+    .social-item { padding: 10px 4px; gap: 4px; }
+    .social-item i { font-size: 16px; }
+    .social-item span { font-size: 9px; }
+    .social-item .tennis-svg-icon { width: 16px; height: 16px; }
+
+    .btn-action { padding: 10px 8px; font-size: 11px; gap: 6px; }
+    .btn-action i { font-size: 11px; }
+
+    .nfc-footer { padding: 12px 0 0; margin-top: 12px; min-height: 48px; }
+    .nfc-icon { font-size: 14px; }
+    .nfc-text { font-size: 8px; }
+
+    .fab-zoom { bottom: calc(env(safe-area-inset-bottom, 0px) + 60px); right: 10px; }
+    .fab-zoom-main { width: 40px; height: 40px; font-size: 14px; }
+    .fab-zoom-item { width: 34px; height: 34px; font-size: 11px; }
+
+    .card-container { padding: 12px 0; }
 }
 
+/* ── Standard phones (iPhone 12/13/14, 375-390px) ── */
+@media (max-width: 420px) {
+    .telemetry-bar {
+        gap: 8px;
+        padding: 6px 14px;
+        margin-top: 10px;
+    }
+    .telemetry-label { font-size: 7px; }
+    .telemetry-value { font-size: 9px; }
+
+    .glass-card {
+        padding: 24px 18px;
+        border-radius: 18px;
+    }
+
+    .avatar-ring { width: 68px; height: 68px; }
+    .avatar-text { font-size: 20px; }
+
+    .name-cn { font-size: 26px; letter-spacing: 5px; }
+    .name-en { font-size: 12px; letter-spacing: 3px; }
+
+    .subtitle-line { gap: 10px; margin-bottom: 18px; }
+    .sub-dash { width: 18px; }
+
+    .section-block { margin-bottom: 16px; }
+    .section-header { font-size: 10px; }
+
+    .contact-item { padding: 10px 12px; }
+    .item-icon { width: 32px; height: 32px; }
+    .item-label { font-size: 9px; }
+    .item-value { font-size: 13px; }
+
+    .social-grid { gap: 6px; }
+    .social-item { padding: 12px 6px; gap: 6px; }
+    .social-item i { font-size: 18px; }
+    .social-item span { font-size: 10px; }
+
+    .btn-action { padding: 11px 10px; font-size: 12px; }
+
+    .card-container { padding: 16px 0; }
+
+    .fab-zoom { bottom: calc(env(safe-area-inset-bottom, 0px) + 70px); right: 12px; }
+}
+
+/* ── Tablets (iPad, 768px+) ── */
 @media (min-width: 768px) {
     .glass-card {
         padding: 40px 36px;
         border-radius: 24px;
     }
 
-    .name {
-        font-size: 34px;
-    }
+    .name-cn { font-size: 34px; }
 
-    .avatar-ring {
-        width: 96px;
-        height: 96px;
-    }
-
-    .avatar-text {
-        font-size: 30px;
-    }
+    .avatar-ring { width: 96px; height: 96px; }
+    .avatar-text { font-size: 30px; }
 }
 
 /* ═══════ 16. Floating Zoom Button (iPhone-style) ═══════ */
